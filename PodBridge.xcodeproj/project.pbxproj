@@ -1,0 +1,551 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* PodBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* PodBridgeApp.swift */; };
+		A10000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* ContentView.swift */; };
+		A10000000000000000000003 /* MusicFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* MusicFile.swift */; };
+		A10000000000000000000004 /* MusicTransferEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* MusicTransferEngine.swift */; };
+		A10000000000000000000005 /* MusicTransferViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* MusicTransferViewModel.swift */; };
+		A10000000000000000000006 /* MusicTransferEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* MusicTransferEngineTests.swift */; };
+		A1000000000000000000000A /* BinaryData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* BinaryData.swift */; };
+		A1000000000000000000000B /* AudioMetadataReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000B /* AudioMetadataReader.swift */; };
+		A1000000000000000000000C /* ClassicDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000C /* ClassicDatabase.swift */; };
+		A1000000000000000000000D /* IPodSyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000D /* IPodSyncEngine.swift */; };
+		A1000000000000000000000E /* ClassicDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E /* ClassicDatabaseTests.swift */; };
+		A1000000000000000000000F /* IPodSyncEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000F /* IPodSyncEngineTests.swift */; };
+		A10000000000000000000010 /* ArtworkDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* ArtworkDatabase.swift */; };
+		A10000000000000000000011 /* ArtworkDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* ArtworkDatabaseTests.swift */; };
+		A10000000000000000000012 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* AppLogger.swift */; };
+		A10000000000000000000013 /* PersistentLogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* PersistentLogStore.swift */; };
+		A10000000000000000000014 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* DiagnosticsView.swift */; };
+		A10000000000000000000015 /* DebugShakeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* DebugShakeDetector.swift */; };
+		A10000000000000000000016 /* PersistentLogStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* PersistentLogStoreTests.swift */; };
+		A10000000000000000000017 /* ArtworkLookupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* ArtworkLookupService.swift */; };
+		A10000000000000000000023 /* IPodVolumeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000023 /* IPodVolumeStore.swift */; };
+		A10000000000000000000024 /* Hash58.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000024 /* Hash58.swift */; };
+		A10000000000000000000025 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000025 /* Assets.xcassets */; };
+		A10000000000000000000026 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000026 /* PrivacyInfo.xcprivacy */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C10000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D10000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E10000000000000000000001;
+			remoteInfo = PodBridge;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		B10000000000000000000001 /* PodBridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodBridgeApp.swift; sourceTree = "<group>"; };
+		B10000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		B10000000000000000000003 /* MusicFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicFile.swift; sourceTree = "<group>"; };
+		B10000000000000000000004 /* MusicTransferEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicTransferEngine.swift; sourceTree = "<group>"; };
+		B10000000000000000000005 /* MusicTransferViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicTransferViewModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000006 /* MusicTransferEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicTransferEngineTests.swift; sourceTree = "<group>"; };
+		B10000000000000000000007 /* PodBridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PodBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000008 /* PodBridgeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PodBridgeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000009 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		B1000000000000000000000A /* BinaryData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BinaryData.swift; sourceTree = "<group>"; };
+		B1000000000000000000000B /* AudioMetadataReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioMetadataReader.swift; sourceTree = "<group>"; };
+		B1000000000000000000000C /* ClassicDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicDatabase.swift; sourceTree = "<group>"; };
+		B1000000000000000000000D /* IPodSyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPodSyncEngine.swift; sourceTree = "<group>"; };
+		B1000000000000000000000E /* ClassicDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicDatabaseTests.swift; sourceTree = "<group>"; };
+		B1000000000000000000000F /* IPodSyncEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPodSyncEngineTests.swift; sourceTree = "<group>"; };
+		B10000000000000000000010 /* ArtworkDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkDatabase.swift; sourceTree = "<group>"; };
+		B10000000000000000000011 /* ArtworkDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkDatabaseTests.swift; sourceTree = "<group>"; };
+		B10000000000000000000012 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
+		B10000000000000000000013 /* PersistentLogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentLogStore.swift; sourceTree = "<group>"; };
+		B10000000000000000000014 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
+		B10000000000000000000015 /* DebugShakeDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugShakeDetector.swift; sourceTree = "<group>"; };
+		B10000000000000000000016 /* PersistentLogStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentLogStoreTests.swift; sourceTree = "<group>"; };
+		B10000000000000000000017 /* ArtworkLookupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkLookupService.swift; sourceTree = "<group>"; };
+		B10000000000000000000023 /* IPodVolumeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPodVolumeStore.swift; sourceTree = "<group>"; };
+		B10000000000000000000024 /* Hash58.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hash58.swift; sourceTree = "<group>"; };
+		B10000000000000000000025 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B10000000000000000000026 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F10000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F10000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		G10000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				G10000000000000000000002 /* PodBridge */,
+				G10000000000000000000003 /* PodBridgeTests */,
+				B10000000000000000000009 /* README.md */,
+				G10000000000000000000004 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		G10000000000000000000002 /* PodBridge */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000001 /* PodBridgeApp.swift */,
+				B10000000000000000000002 /* ContentView.swift */,
+				B10000000000000000000003 /* MusicFile.swift */,
+				B10000000000000000000004 /* MusicTransferEngine.swift */,
+				B10000000000000000000005 /* MusicTransferViewModel.swift */,
+				B1000000000000000000000A /* BinaryData.swift */,
+				B1000000000000000000000B /* AudioMetadataReader.swift */,
+				B1000000000000000000000C /* ClassicDatabase.swift */,
+				B1000000000000000000000D /* IPodSyncEngine.swift */,
+				B10000000000000000000010 /* ArtworkDatabase.swift */,
+				B10000000000000000000017 /* ArtworkLookupService.swift */,
+				B10000000000000000000012 /* AppLogger.swift */,
+				B10000000000000000000013 /* PersistentLogStore.swift */,
+				B10000000000000000000014 /* DiagnosticsView.swift */,
+				B10000000000000000000015 /* DebugShakeDetector.swift */,
+				B10000000000000000000023 /* IPodVolumeStore.swift */,
+				B10000000000000000000024 /* Hash58.swift */,
+				B10000000000000000000025 /* Assets.xcassets */,
+				B10000000000000000000026 /* PrivacyInfo.xcprivacy */,
+			);
+			path = PodBridge;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000003 /* PodBridgeTests */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000006 /* MusicTransferEngineTests.swift */,
+				B1000000000000000000000E /* ClassicDatabaseTests.swift */,
+				B1000000000000000000000F /* IPodSyncEngineTests.swift */,
+				B10000000000000000000011 /* ArtworkDatabaseTests.swift */,
+				B10000000000000000000016 /* PersistentLogStoreTests.swift */,
+			);
+			path = PodBridgeTests;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000007 /* PodBridge.app */,
+				B10000000000000000000008 /* PodBridgeTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E10000000000000000000001 /* PodBridge */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = H10000000000000000000002 /* Build configuration list for PBXNativeTarget "PodBridge" */;
+			buildPhases = (
+				F10000000000000000000003 /* Sources */,
+				F10000000000000000000001 /* Frameworks */,
+				F10000000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PodBridge;
+			productName = PodBridge;
+			productReference = B10000000000000000000007 /* PodBridge.app */;
+			productType = "com.apple.product-type.application";
+		};
+		E10000000000000000000002 /* PodBridgeTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = H10000000000000000000003 /* Build configuration list for PBXNativeTarget "PodBridgeTests" */;
+			buildPhases = (
+				F10000000000000000000004 /* Sources */,
+				F10000000000000000000002 /* Frameworks */,
+				F10000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C10000000000000000000002 /* PBXTargetDependency */,
+			);
+			name = PodBridgeTests;
+			productName = PodBridgeTests;
+			productReference = B10000000000000000000008 /* PodBridgeTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D10000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					E10000000000000000000001 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					E10000000000000000000002 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = E10000000000000000000001;
+					};
+				};
+			};
+			buildConfigurationList = H10000000000000000000001 /* Build configuration list for PBXProject "PodBridge" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = G10000000000000000000001;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = G10000000000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E10000000000000000000001 /* PodBridge */,
+				E10000000000000000000002 /* PodBridgeTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F10000000000000000000005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000025 /* Assets.xcassets in Resources */,
+				A10000000000000000000026 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F10000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F10000000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* PodBridgeApp.swift in Sources */,
+				A10000000000000000000002 /* ContentView.swift in Sources */,
+				A10000000000000000000003 /* MusicFile.swift in Sources */,
+				A10000000000000000000004 /* MusicTransferEngine.swift in Sources */,
+				A10000000000000000000005 /* MusicTransferViewModel.swift in Sources */,
+				A1000000000000000000000A /* BinaryData.swift in Sources */,
+				A1000000000000000000000B /* AudioMetadataReader.swift in Sources */,
+				A1000000000000000000000C /* ClassicDatabase.swift in Sources */,
+				A1000000000000000000000D /* IPodSyncEngine.swift in Sources */,
+				A10000000000000000000010 /* ArtworkDatabase.swift in Sources */,
+				A10000000000000000000017 /* ArtworkLookupService.swift in Sources */,
+				A10000000000000000000012 /* AppLogger.swift in Sources */,
+				A10000000000000000000013 /* PersistentLogStore.swift in Sources */,
+				A10000000000000000000014 /* DiagnosticsView.swift in Sources */,
+				A10000000000000000000015 /* DebugShakeDetector.swift in Sources */,
+				A10000000000000000000023 /* IPodVolumeStore.swift in Sources */,
+				A10000000000000000000024 /* Hash58.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F10000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000006 /* MusicTransferEngineTests.swift in Sources */,
+				A1000000000000000000000E /* ClassicDatabaseTests.swift in Sources */,
+				A1000000000000000000000F /* IPodSyncEngineTests.swift in Sources */,
+				A10000000000000000000011 /* ArtworkDatabaseTests.swift in Sources */,
+				A10000000000000000000016 /* PersistentLogStoreTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C10000000000000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E10000000000000000000001 /* PodBridge */;
+			targetProxy = C10000000000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		I10000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		I10000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		I10000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 11;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = PodBridge;
+				INFOPLIST_KEY_CFBundleIconName = AppIcon;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.balantaev.podbridge;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		I10000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 11;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = PodBridge;
+				INFOPLIST_KEY_CFBundleIconName = AppIcon;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.balantaev.podbridge;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		I10000000000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 11;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.podbridge.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PodBridge.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PodBridge";
+			};
+			name = Debug;
+		};
+		I10000000000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 11;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.podbridge.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PodBridge.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PodBridge";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		H10000000000000000000001 /* Build configuration list for PBXProject "PodBridge" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				I10000000000000000000001 /* Debug */,
+				I10000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		H10000000000000000000002 /* Build configuration list for PBXNativeTarget "PodBridge" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				I10000000000000000000003 /* Debug */,
+				I10000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		H10000000000000000000003 /* Build configuration list for PBXNativeTarget "PodBridgeTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				I10000000000000000000005 /* Debug */,
+				I10000000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = D10000000000000000000001 /* Project object */;
+}

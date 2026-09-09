@@ -1,0 +1,41 @@
+.DS_Store
+
+# Xcode local state and build products
+build/
+DerivedData/
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+.swiftpm/
+.build/
+
+# Local configuration and credentials. Commit an explicitly named example file
+# (for example, .env.example) when configuration instructions are needed.
+.xcode.env.local
+.env
+.env.*
+!.env.example
+*.local
+*.local.*
+Secrets/
+Secrets.*
+Config/Private.xcconfig
+Config/*.local.xcconfig
+*.key
+*.pem
+*.p8
+*.cer
+*.mobileprovision
+*.p12
+
+# Generated archives, logs, and crash reports
+*.ipa
+*.dSYM.zip
+*.xcarchive
+*.crash
+*.log
+
+# Local screenshots exported into the repository root
+/Screenshot*.png
+/Снимок экрана*.png
+/Изображение Codex*.png
