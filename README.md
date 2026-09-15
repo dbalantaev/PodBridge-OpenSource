@@ -78,6 +78,21 @@ Windows-restored FAT32 Classic uses the same on-iPod library format, and
 PodBridge intentionally avoids Mac-only filesystem features, but that exact
 configuration still needs a real-device test.
 
+### Do not mix PodBridge with desktop iPod sync
+
+Once PodBridge has added music to an iPod, do **not** connect that iPod to
+Finder/Music on macOS or iTunes on Windows to sync music in the usual way.
+PodBridge writes the Classic `iTunesDB` directly; it does not implement
+Apple's desktop synchronisation protocol or every piece of sync state that
+Finder/Music and iTunes expect to own. The desktop app can therefore consider
+the library invalid and ask to restore the iPod. A subsequent desktop sync can
+also replace the database and remove PodBridge-managed library changes.
+
+Use one workflow for each restore: either manage music directly with
+PodBridge, or restore the iPod and manage it exclusively with Finder/Music or
+iTunes. This limitation applies to both Mac-restored and Windows-restored
+iPods; it is not caused by FAT32.
+
 ## Getting started
 
 ### What you need
