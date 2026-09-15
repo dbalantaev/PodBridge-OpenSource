@@ -16,6 +16,7 @@ For the code-level structure and ownership boundaries, see
 
 <p align="center">
   <a href="#getting-started">Getting started</a> ·
+  <a href="#optional-self-hosted-library">ALACarte</a> ·
   <a href="#supported-ipods">Supported iPods</a> ·
   <a href="#safety-and-backups">Safety</a> ·
   <a href="PRIVACY.md">Privacy</a> ·
@@ -47,6 +48,8 @@ single track before transferring a large folder.
 - Shows the selected iPod model, song count, total capacity, used space, free
   space, and a storage bar.
 - Can look up missing artwork through MusicBrainz and the Cover Art Archive.
+- Can import an already-downloaded ALAC/M4A library from your own ALACarte
+  server. PodBridge does not use a developer-operated music server.
 
 ## Supported iPods
 
@@ -108,6 +111,34 @@ seven days. Reinstalling the iPhone app does not change anything on the iPod.
 
 Once that works, repeat the process with a larger folder.
 
+## Optional self-hosted library
+
+PodBridge can connect to an ALACarte instance running on your own computer or
+home server and import music that is already present in its library. The app
+does not include a server, connect to the project author's server, or manage
+Apple Music downloads.
+
+Use the [PodBridge-compatible ALACarte fork](https://github.com/dbalantaev/alacarte):
+
+1. Install Docker and Docker Compose on an x86_64 computer or compatible host.
+2. Clone the fork, copy `.env.example` to `.env`, and set `MUSIC_PATH` to your
+   music-library folder.
+3. Start it with `docker compose up -d --build`, open
+   `http://<computer-address>:7373`, and complete ALACarte's initial setup.
+4. In **ALACarte → Settings → Library output**, choose **ALAC**, not FLAC.
+   Classic iPods and PodBridge do not support FLAC.
+5. In PodBridge, choose **Self-hosted library**, enter that server address and
+   your ALACarte username/password, then select existing albums or playlists.
+
+For a server on the same Wi-Fi network, an address such as
+`http://mac.local:7373` is sufficient. For remote access, use HTTPS through a
+private VPN or mesh network such as Tailscale. Do not expose ALACarte's port
+directly to the public internet. The password is not saved by PodBridge; only
+the resulting session is kept in the iPhone Keychain.
+
+The fork and its server-side changes are licensed separately under AGPL-3.0.
+See its README for system requirements, security notes, and Apple Music terms.
+
 ## Safety and backups
 
 Before changing the library, PodBridge saves the existing `iTunesDB` and, when
@@ -162,7 +193,8 @@ xcodebuild \
 ```
 
 The tests cover database parsing and round-tripping, Hash58 signing, playlists,
-Unicode metadata, artwork generation and rollback, and diagnostic-log storage.
+Unicode metadata, artwork generation and rollback, diagnostic-log storage, and
+ALACarte server compatibility and format validation.
 Hardware testing is still required before using a large music library.
 
 ## Contributing

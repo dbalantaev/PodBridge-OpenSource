@@ -31,6 +31,8 @@
 		A10000000000000000000024 /* Hash58.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000024 /* Hash58.swift */; };
 		A10000000000000000000025 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000025 /* Assets.xcassets */; };
 		A10000000000000000000026 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000026 /* PrivacyInfo.xcprivacy */; };
+		A10000000000000000000027 /* ALACarteIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000027 /* ALACarteIntegration.swift */; };
+		A10000000000000000000028 /* ALACarteClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000028 /* ALACarteClientTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -71,6 +73,8 @@
 		B10000000000000000000024 /* Hash58.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hash58.swift; sourceTree = "<group>"; };
 		B10000000000000000000025 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B10000000000000000000026 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B10000000000000000000027 /* ALACarteIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ALACarteIntegration.swift; sourceTree = "<group>"; };
+		B10000000000000000000028 /* ALACarteClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ALACarteClientTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -121,6 +125,7 @@
 				B10000000000000000000015 /* DebugShakeDetector.swift */,
 				B10000000000000000000023 /* IPodVolumeStore.swift */,
 				B10000000000000000000024 /* Hash58.swift */,
+				B10000000000000000000027 /* ALACarteIntegration.swift */,
 				B10000000000000000000025 /* Assets.xcassets */,
 				B10000000000000000000026 /* PrivacyInfo.xcprivacy */,
 			);
@@ -135,6 +140,7 @@
 				B1000000000000000000000F /* IPodSyncEngineTests.swift */,
 				B10000000000000000000011 /* ArtworkDatabaseTests.swift */,
 				B10000000000000000000016 /* PersistentLogStoreTests.swift */,
+				B10000000000000000000028 /* ALACarteClientTests.swift */,
 			);
 			path = PodBridgeTests;
 			sourceTree = "<group>";
@@ -266,6 +272,7 @@
 				A10000000000000000000015 /* DebugShakeDetector.swift in Sources */,
 				A10000000000000000000023 /* IPodVolumeStore.swift in Sources */,
 				A10000000000000000000024 /* Hash58.swift in Sources */,
+				A10000000000000000000027 /* ALACarteIntegration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -278,6 +285,7 @@
 				A1000000000000000000000F /* IPodSyncEngineTests.swift in Sources */,
 				A10000000000000000000011 /* ArtworkDatabaseTests.swift in Sources */,
 				A10000000000000000000016 /* PersistentLogStoreTests.swift in Sources */,
+				A10000000000000000000028 /* ALACarteClientTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -424,6 +432,8 @@
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "PodBridge connects to your self-hosted music server on the local network.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -454,6 +464,8 @@
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "PodBridge connects to your self-hosted music server on the local network.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
