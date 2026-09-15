@@ -78,6 +78,24 @@ Windows-restored FAT32 Classic uses the same on-iPod library format, and
 PodBridge intentionally avoids Mac-only filesystem features, but that exact
 configuration still needs a real-device test.
 
+### Prepare an iPod for PodBridge on a Mac
+
+Do this immediately after restoring the iPod with Finder, before importing the
+first track with PodBridge:
+
+1. Connect the iPod to the Mac and select it in Finder.
+2. In **General**, enable **Enable disk use** (also shown as “Use iPod as a
+   disk”), then click **Apply**. This keeps the iPod volume mounted so that a
+   future PodBridge Mac app can access the hidden `iPod_Control` folder.
+3. Turn off **Automatically sync when this iPod is connected**. Do not enable
+   music syncing in Finder/Music.
+4. After using the iPod as a disk, always eject it from Finder before
+   disconnecting the cable.
+
+Finder continuing to show the iPod is expected: it is the mounted-volume and
+safe-eject UI. Do not press **Sync**, **Update**, or **Restore** after
+PodBridge has become the music manager.
+
 ### Do not mix PodBridge with desktop iPod sync
 
 Once PodBridge has added music to an iPod, do **not** connect that iPod to
