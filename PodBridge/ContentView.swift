@@ -19,7 +19,9 @@ struct ContentView: View {
     @State private var showingDiagnostics = false
     @State private var confirmingRestore = false
     @State private var showingLibrary = false
+#if PODBRIDGE_ALACARTE
     @State private var showingALACarte = false
+#endif
     @State private var showingSignatureIDPrompt = false
     @State private var showingSignatureIDHelp = false
     @State private var showingDeviceModelChooser = false
@@ -33,7 +35,9 @@ struct ContentView: View {
                     safetyNotice
                     sourceSection
                     destinationSection
+#if PODBRIDGE_ALACARTE
                     alacarteSection
+#endif
                     librarySection
                     transferSection
                 }
@@ -64,9 +68,11 @@ struct ContentView: View {
         .sheet(isPresented: $showingLibrary) {
             IPodLibraryView(model: model)
         }
+#if PODBRIDGE_ALACARTE
         .sheet(isPresented: $showingALACarte) {
             ALACarteBrowserView(model: model)
         }
+#endif
         .sheet(isPresented: $showingSignatureIDHelp) {
             SignatureIDHelpView()
         }
@@ -383,7 +389,7 @@ struct ContentView: View {
     }
 
     private var transferSection: some View {
-        sectionCard(title: "5. Sync library", icon: "arrow.right.circle") {
+        sectionCard(title: transferSectionTitle, icon: "arrow.right.circle") {
             if model.isCopying {
                 VStack(alignment: .leading, spacing: 8) {
                     ProgressView(value: model.copyProgress)
@@ -415,6 +421,7 @@ struct ContentView: View {
         }
     }
 
+#if PODBRIDGE_ALACARTE
     private var alacarteSection: some View {
         sectionCard(title: "3. Self-hosted library", icon: "network") {
             Text("Connect to your own PodBridge-compatible ALACarte server and import already-downloaded ALAC/M4A files.")
@@ -430,9 +437,10 @@ struct ContentView: View {
             .disabled(model.isCopying)
         }
     }
+#endif
 
     private var librarySection: some View {
-        sectionCard(title: "4. Manage iPod library", icon: "music.note") {
+        sectionCard(title: librarySectionTitle, icon: "music.note") {
             if model.destinationFolder == nil {
                 Text("Choose the iPod destination to browse and safely delete one track.")
                     .font(.caption)
@@ -460,6 +468,22 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    private var librarySectionTitle: String {
+#if PODBRIDGE_ALACARTE
+        "4. Manage iPod library"
+#else
+        "3. Manage iPod library"
+#endif
+    }
+
+    private var transferSectionTitle: String {
+#if PODBRIDGE_ALACARTE
+        "5. Sync library"
+#else
+        "4. Sync library"
+#endif
     }
 
     private var sourceSubtitle: String {

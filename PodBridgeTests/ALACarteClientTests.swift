@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Dmitry Balantaev
 
 import XCTest
-@testable import PodBridge
+@testable import PodBridgeALACarte
 
 final class ALACarteClientTests: XCTestCase {
     override func tearDown() {
@@ -11,14 +11,14 @@ final class ALACarteClientTests: XCTestCase {
     }
 
     func testServerAddressAcceptsHTTPAndNormalizesTrailingSlash() throws {
-        let url = try ALACarteServerAddress.parse("  http://mac.local:7373/  ")
-        XCTAssertEqual(url.absoluteString, "http://mac.local:7373")
+        let url = try ALACarteServerAddress.parse("  http://server.local:7373/  ")
+        XCTAssertEqual(url.absoluteString, "http://server.local:7373")
     }
 
     func testServerAddressRejectsCredentialsAndUnsupportedSchemes() {
-        XCTAssertThrowsError(try ALACarteServerAddress.parse("ftp://mac.local:7373"))
-        XCTAssertThrowsError(try ALACarteServerAddress.parse("http://user:password@mac.local:7373"))
-        XCTAssertThrowsError(try ALACarteServerAddress.parse("mac.local:7373"))
+        XCTAssertThrowsError(try ALACarteServerAddress.parse("ftp://server.local:7373"))
+        XCTAssertThrowsError(try ALACarteServerAddress.parse("http://user:password@server.local:7373"))
+        XCTAssertThrowsError(try ALACarteServerAddress.parse("server.local:7373"))
     }
 
     func testLoginCompatibilityAndLibraryUseConfiguredServer() async throws {
@@ -26,7 +26,7 @@ final class ALACarteClientTests: XCTestCase {
             switch request.url?.path {
             case "/api/auth/login":
                 XCTAssertEqual(request.httpMethod, "POST")
-                XCTAssertEqual(request.value(forHTTPHeaderField: "Origin"), "http://mac.local:7373")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Origin"), "http://server.local:7373")
                 return Self.response(
                     request,
                     headers: ["Set-Cookie": "alacarte_session=test-session; Path=/; HttpOnly"],
@@ -106,7 +106,7 @@ final class ALACarteClientTests: XCTestCase {
         configuration.protocolClasses = [ALACarteURLProtocolStub.self]
         let session = URLSession(configuration: configuration)
         return ALACarteClient(
-            baseURL: URL(string: "http://mac.local:7373")!,
+            baseURL: URL(string: "http://server.local:7373")!,
             session: session,
             loadSavedSession: false
         )

@@ -16,7 +16,7 @@ For the code-level structure and ownership boundaries, see
 
 <p align="center">
   <a href="#getting-started">Getting started</a> ·
-  <a href="#optional-self-hosted-library">ALACarte</a> ·
+  <a href="#podbridgealacarte-self-hosted-build">ALACarte</a> ·
   <a href="#supported-ipods">Supported iPods</a> ·
   <a href="#safety-and-backups">Safety</a> ·
   <a href="PRIVACY.md">Privacy</a> ·
@@ -48,8 +48,8 @@ single track before transferring a large folder.
 - Shows the selected iPod model, song count, total capacity, used space, free
   space, and a storage bar.
 - Can look up missing artwork through MusicBrainz and the Cover Art Archive.
-- Can import an already-downloaded ALAC/M4A library from your own ALACarte
-  server. PodBridge does not use a developer-operated music server.
+- The optional `PodBridgeALACarte` target can browse and import from your own
+  ALACarte server. No developer-operated server is configured or used.
 
 ## Supported iPods
 
@@ -87,7 +87,11 @@ A free Apple ID is enough. A paid Apple Developer membership is not required.
 1. Install [Xcode](https://apps.apple.com/app/xcode/id497799835) on your Mac
    and open it once.
 2. On GitHub, choose **Code → Download ZIP**, then open the downloaded archive.
-3. Open `PodBridge.xcodeproj`.
+3. Open `PodBridge.xcodeproj` and choose a scheme:
+   - **PodBridge** is the standard target intended for TestFlight/App Store.
+     It contains no ALACarte client code or local-server permission.
+   - **PodBridgeALACarte** is the Xcode/sideload target for connecting to your
+     own ALACarte server.
 4. Connect and unlock your iPhone. Tap **Trust** if either device asks.
 5. In Xcode, select the PodBridge project and open **Signing & Capabilities**.
    Choose your Apple ID under **Team**. If it is not listed, add it in
@@ -111,12 +115,17 @@ seven days. Reinstalling the iPhone app does not change anything on the iPod.
 
 Once that works, repeat the process with a larger folder.
 
-## Optional self-hosted library
+## PodBridgeALACarte self-hosted build
 
-PodBridge can connect to an ALACarte instance running on your own computer or
-home server and import music that is already present in its library. The app
-does not include a server, connect to the project author's server, or manage
-Apple Music downloads.
+`PodBridgeALACarte` is a separate target in the same Xcode project. It connects
+to an ALACarte instance running on your own computer or home server, opens that
+server's full web interface, and imports compatible files already present in
+its library. It is intended for installation directly from Xcode or another
+sideloading workflow, not for the TestFlight/App Store build.
+
+The standard `PodBridge` target does not compile `ALACarteIntegration.swift`,
+does not show ALACarte UI, and does not include the local-network usage
+description. The two targets share the iPod database and transfer engine.
 
 Use the [PodBridge-compatible ALACarte fork](https://github.com/dbalantaev/alacarte):
 
@@ -127,14 +136,17 @@ Use the [PodBridge-compatible ALACarte fork](https://github.com/dbalantaev/alaca
    `http://<computer-address>:7373`, and complete ALACarte's initial setup.
 4. In **ALACarte → Settings → Library output**, choose **ALAC**, not FLAC.
    Classic iPods and PodBridge do not support FLAC.
-5. In PodBridge, choose **Self-hosted library**, enter that server address and
-   your ALACarte username/password, then select existing albums or playlists.
+5. In Xcode, select the **PodBridgeALACarte** scheme and your iPhone, then press
+   **Run**.
+6. In PodBridgeALACarte, choose **Self-hosted library**, enter the address of
+   your server and its username/password, then browse or import music.
 
-For a server on the same Wi-Fi network, an address such as
-`http://mac.local:7373` is sufficient. For remote access, use HTTPS through a
-private VPN or mesh network such as Tailscale. Do not expose ALACarte's port
-directly to the public internet. The password is not saved by PodBridge; only
-the resulting session is kept in the iPhone Keychain.
+For a server on the same Wi-Fi network, use its local HTTP address and port
+`7373`. For remote access, use HTTPS through a private network. Do not expose
+ALACarte's port directly to the public internet. The address and username are
+saved locally, the password is not saved, and the resulting session is kept in
+the iPhone Keychain. There are no bundled hostnames, IP addresses, credentials,
+or remote-access presets.
 
 The fork and its server-side changes are licensed separately under AGPL-3.0.
 See its README for system requirements, security notes, and Apple Music terms.
@@ -181,7 +193,7 @@ absolute source paths, cover-image bytes, or audio contents.
 Open `PodBridge.xcodeproj` in Xcode 26 or later and select your development team under
 **Signing & Capabilities**.
 
-To build the test bundle from the command line:
+To build the standard test bundle from the command line:
 
 ```bash
 xcodebuild \
@@ -196,6 +208,16 @@ The tests cover database parsing and round-tripping, Hash58 signing, playlists,
 Unicode metadata, artwork generation and rollback, diagnostic-log storage, and
 ALACarte server compatibility and format validation.
 Hardware testing is still required before using a large music library.
+
+To build and test the self-hosted target:
+
+```bash
+xcodebuild test \
+  -project PodBridge.xcodeproj \
+  -scheme PodBridgeALACarte \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  CODE_SIGNING_ALLOWED=NO
+```
 
 ## Contributing
 

@@ -4,6 +4,7 @@
 import Foundation
 import Security
 import SwiftUI
+import WebKit
 
 struct ALACarteLibraryItem: Identifiable, Hashable, Sendable {
     enum Kind: String, Sendable { case album, song, playlist }
@@ -100,6 +101,7 @@ final class ALACarteClient: @unchecked Sendable {
     }
 
     var hasSavedSession: Bool { sessionCookieHeader != nil }
+    var webSessionCookieHeader: String? { sessionCookieHeader }
 
     func forgetSavedSession() {
         sessionCookieHeader = nil
@@ -367,6 +369,7 @@ struct ALACarteBrowserView: View {
     @State private var connecting = false
     @State private var errorMessage: String?
     @State private var selectedItemIDs: Set<String> = []
+    @State private var showingWebInterface = false
 
     private var filteredItems: [ALACarteLibraryItem] {
         guard !searchText.isEmpty else { return items }
@@ -381,7 +384,7 @@ struct ALACarteBrowserView: View {
             List {
                 if client == nil {
                     Section {
-                        TextField("http://mac.local:7373", text: $serverAddress)
+                        TextField("http://server.local:7373", text: $serverAddress)
                             .keyboardType(.URL)
                             .textContentType(.URL)
                             .textInputAutocapitalization(.never)
@@ -403,6 +406,15 @@ struct ALACarteBrowserView: View {
                     Section {
                         Label(client?.baseURL.host ?? "Connected", systemImage: "checkmark.circle")
                             .foregroundStyle(.secondary)
+                    }
+                    Section {
+                        Button {
+                            showingWebInterface = true
+                        } label: {
+                            Label("Open full ALACarte interface", systemImage: "globe")
+                        }
+                    } footer: {
+                        Text("Search, queue downloads, and change settings on your own ALACarte server.")
                     }
                     Section {
                         ForEach(filteredItems) { item in
@@ -488,6 +500,14 @@ struct ALACarteBrowserView: View {
             }
         }
         .task { await restoreSavedSession() }
+        .sheet(isPresented: $showingWebInterface) {
+            if let client {
+                ALACarteWebInterfaceView(
+                    serverURL: client.baseURL,
+                    sessionCookieHeader: client.webSessionCookieHeader
+                )
+            }
+        }
     }
 
     private func connect() {
@@ -538,5 +558,74 @@ struct ALACarteBrowserView: View {
         case .song: "music.note"
         case .playlist: "music.note.list"
         }
+    }
+}
+
+private struct ALACarteWebInterfaceView: View {
+    @Environment(\.dismiss) private var dismiss
+    let serverURL: URL
+    let sessionCookieHeader: String?
+
+    var body: some View {
+        NavigationStack {
+            ALACarteWebPage(
+                serverURL: serverURL,
+                sessionCookieHeader: sessionCookieHeader
+            )
+            .ignoresSafeArea(edges: .bottom)
+            .navigationTitle("ALACarte")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct ALACarteWebPage: UIViewRepresentable {
+    let serverURL: URL
+    let sessionCookieHeader: String?
+
+    func makeUIView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .default()
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.allowsBackForwardNavigationGestures = true
+
+        let request = authenticatedEntryRequest()
+        let load = { _ = webView.load(request) }
+        if let cookie = makeSessionCookie() {
+            configuration.websiteDataStore.httpCookieStore.setCookie(cookie) { load() }
+        } else {
+            load()
+        }
+        return webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {}
+
+    private func makeSessionCookie() -> HTTPCookie? {
+        guard let sessionCookieHeader, sessionCookieHeader.contains("=") else { return nil }
+        let secure = serverURL.scheme == "https" ? "; Secure" : ""
+        let header = "\(sessionCookieHeader); Path=/; Max-Age=2592000; HttpOnly; SameSite=Strict\(secure)"
+        return HTTPCookie.cookies(
+            withResponseHeaderFields: ["Set-Cookie": header],
+            for: serverURL
+        ).first
+    }
+
+    private func authenticatedEntryRequest() -> URLRequest {
+        guard let sessionCookieHeader,
+              let separator = sessionCookieHeader.firstIndex(of: "=") else {
+            return URLRequest(url: serverURL)
+        }
+        let token = sessionCookieHeader[sessionCookieHeader.index(after: separator)...]
+        let entryURL = serverURL.appendingPathComponent("api/auth/webview-session")
+        var request = URLRequest(url: entryURL)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        return request
     }
 }

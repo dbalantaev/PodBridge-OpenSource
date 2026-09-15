@@ -37,7 +37,9 @@ final class MusicTransferViewModel: ObservableObject {
     @Published private(set) var isRestoring = false
     @Published private(set) var isManagingLibrary = false
     @Published private(set) var artworkSearchProgress: IPodSyncEngine.ArtworkSearchProgress?
+#if PODBRIDGE_ALACARTE
     @Published private(set) var alacarteStatus: String?
+#endif
     @Published private(set) var destinationNeedsFirewireID = false
     @Published var errorMessage: String?
 
@@ -374,6 +376,7 @@ final class MusicTransferViewModel: ObservableObject {
         }
     }
 
+#if PODBRIDGE_ALACARTE
     func importFromALACarte(client: ALACarteClient, items selectedItems: [ALACarteLibraryItem]) {
         guard let destinationFolder else {
             errorMessage = PodBridgeError.noDestinationFolder.localizedDescription
@@ -461,6 +464,7 @@ final class MusicTransferViewModel: ObservableObject {
             }
         }
     }
+#endif
 
     func deleteTrack(_ track: ClassicTrack) {
         guard let destinationFolder, !isManagingLibrary, deletionBackups.isEmpty else { return }
