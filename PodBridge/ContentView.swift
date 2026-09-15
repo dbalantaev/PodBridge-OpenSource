@@ -186,13 +186,21 @@ struct ContentView: View {
             Text("Add music from Files to the iPod library")
                 .font(.headline)
                 .multilineTextAlignment(.center)
-            Text("Transfer music from the iPhone directly to the iPod library.")
+            Text(transferSubtitle)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
+    }
+
+    private var transferSubtitle: String {
+#if targetEnvironment(macCatalyst)
+        "Transfer music from a Mac folder directly to the iPod library."
+#else
+        "Transfer music from the iPhone directly to the iPod library."
+#endif
     }
 
     private var safetyNotice: some View {

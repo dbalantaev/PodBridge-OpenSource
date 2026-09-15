@@ -59,7 +59,8 @@ documented by libgpod. They still need real-world testing.
 
 | Status | Model | Notes |
 | --- | --- | --- |
-| ✅ Tested | **iPod Classic 160 GB, Late 2009** (commonly called 7th generation) | Tested with an iPhone 15 Pro. |
+| ✅ Tested | **iPod Classic 160 GB, Late 2009** (commonly called 7th generation), restored with macOS/Finder | Tested with an iPhone 15 Pro. |
+| 🧪 Experimental | iPod Classic 160 GB, Late 2009, restored with Windows/iTunes (FAT32) | Uses the same Classic Hash58 database format and is expected to work, but has not yet been tested on physical hardware. Start with one track and keep a full backup. |
 | 🧪 Experimental | iPod Classic 80 GB / 160 GB (2007) and iPod Classic 120 GB (2008) | Uses the Classic Hash58 database and Classic artwork formats. |
 | 🧪 Experimental | iPod Video 5th / 5.5th generation | Uses an unsigned `iTunesDB` and 100 × 100 / 200 × 200 artwork caches. |
 | 🧪 Experimental | iPod nano 1st / 2nd generation | Uses an unsigned `iTunesDB` and 42 × 42 / 100 × 100 artwork caches. |
@@ -71,14 +72,53 @@ After you select the iPod destination, PodBridge asks for the exact model and
 uses the matching checksum and artwork profile. The app cannot verify that the
 model you chose matches the hardware, so choose carefully.
 
+Restore format also matters for the current test coverage. The known-good
+configuration is the 160 GB Classic restored with macOS/Finder. A
+Windows-restored FAT32 Classic uses the same on-iPod library format, and
+PodBridge intentionally avoids Mac-only filesystem features, but that exact
+configuration still needs a real-device test.
+
+### Prepare an iPod for PodBridge on a Mac
+
+Do this immediately after restoring the iPod with Finder, before importing the
+first track with PodBridge:
+
+1. Connect the iPod to the Mac and select it in Finder.
+2. In **General**, enable **Enable disk use** (also shown as “Use iPod as a
+   disk”), then click **Apply**. This keeps the iPod volume mounted so that a
+   PodBridge Mac Catalyst build can access the hidden `iPod_Control` folder.
+3. Turn off **Automatically sync when this iPod is connected**. Do not enable
+   music syncing in Finder/Music.
+4. After using the iPod as a disk, always eject it from Finder before
+   disconnecting the cable.
+
+Finder continuing to show the iPod is expected: it is the mounted-volume and
+safe-eject UI. Do not press **Sync**, **Update**, or **Restore** after
+PodBridge has become the music manager.
+
+### Do not mix PodBridge with desktop iPod sync
+
+Once PodBridge has added music to an iPod, do **not** use Finder/Music on
+macOS or iTunes on Windows to sync music in the usual way.
+PodBridge writes the Classic `iTunesDB` directly; it does not implement
+Apple's desktop synchronisation protocol or every piece of sync state that
+Finder/Music and iTunes expect to own. The desktop app can therefore consider
+the library invalid and ask to restore the iPod. A subsequent desktop sync can
+also replace the database and remove PodBridge-managed library changes.
+
+Use one workflow for each restore: either manage music directly with
+PodBridge, or restore the iPod and manage it exclusively with Finder/Music or
+iTunes. This limitation applies to both Mac-restored and Windows-restored
+iPods; it is not caused by FAT32.
+
 ## Getting started
 
 ### What you need
 
-- An iPhone running iOS 17 or later.
-- A Mac with Xcode 26 or later to install the app.
+- A Mac running macOS 14 or later, with Xcode 26 or later to install the app.
 - A supported iPod running Apple’s original firmware.
-- A cable or adapter that lets the iPod appear in the iPhone Files picker.
+- Either an iPhone running iOS 17 or later with a cable/adapter that lets the
+  iPod appear in the Files picker, or a Mac with the iPod enabled for disk use.
 
 ### Install PodBridge on your iPhone
 
@@ -103,6 +143,28 @@ A free Apple ID is enough. A paid Apple Developer membership is not required.
 
 Apps installed with a free Apple ID usually need to be installed again after
 seven days. Reinstalling the iPhone app does not change anything on the iPod.
+
+### Run PodBridge on a Mac
+
+Both app targets also build as Mac Catalyst apps. This is a direct iPod library
+manager, not a Music/Finder plug-in: Finder mounts and ejects the iPod, while
+PodBridge reads and writes its music library.
+
+1. Follow [Prepare an iPod for PodBridge on a Mac](#prepare-an-ipod-for-podbridge-on-a-mac)
+   after restoring the iPod.
+2. Open `PodBridge.xcodeproj`. Select **PodBridge** for the standard build, or
+   **PodBridgeALACarte** for the self-hosted ALACarte build.
+3. In Xcode’s run destination menu, choose **My Mac (Mac Catalyst)**, then
+   press **Run**.
+4. In PodBridge, choose a source music folder and choose the root of the
+   mounted iPod volume as the destination. Grant the folder-access prompt when
+   macOS shows it.
+5. Wait for the verified transfer to finish, then eject the iPod in Finder.
+
+Do not use **Sync**, **Update**, or **Restore** in Finder after PodBridge has
+managed the iPod library. The standard `PodBridge` and `PodBridgeALACarte`
+targets remain separate on both iPhone and Mac; the standard target contains no
+ALACarte code or local-network permission.
 
 ### Add your first track
 
@@ -136,8 +198,8 @@ Use the [PodBridge-compatible ALACarte fork](https://github.com/dbalantaev/alaca
    `http://<computer-address>:7373`, and complete ALACarte's initial setup.
 4. In **ALACarte → Settings → Library output**, choose **ALAC**, not FLAC.
    Classic iPods and PodBridge do not support FLAC.
-5. In Xcode, select the **PodBridgeALACarte** scheme and your iPhone, then press
-   **Run**.
+5. In Xcode, select the **PodBridgeALACarte** scheme and either your iPhone or
+   **My Mac (Mac Catalyst)**, then press **Run**.
 6. In PodBridgeALACarte, choose **Self-hosted library**, enter the address of
    your server and its username/password, then browse or import music.
 
@@ -176,10 +238,10 @@ working, and keep a separate full backup of the iPod.
 An iPod Classic database is signed with an identifier unique to that device.
 PodBridge reads it from `iPod_Control/Device/SysInfo` or `SysInfoExtended`.
 
-Those files can be empty after an iPod restore. In that case, PodBridge will
-stop before changing the library and show commands for retrieving the ID on
-macOS, Windows, or Linux. Enter it once and PodBridge will reuse it for that
-iPod.
+Those files can be empty after an iPod restore, including a Windows/iTunes
+restore. In that case, PodBridge will stop before changing the library and show
+commands for retrieving the ID on macOS, Windows, or Linux. Enter it once and
+PodBridge will reuse it for that iPod.
 
 ## Diagnostics
 
@@ -217,6 +279,17 @@ xcodebuild test \
   -scheme PodBridgeALACarte \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   CODE_SIGNING_ALLOWED=NO
+```
+
+To build either app for Mac Catalyst, substitute its scheme in this command:
+
+```bash
+xcodebuild \
+  -project PodBridge.xcodeproj \
+  -scheme PodBridge \
+  -destination 'platform=macOS,variant=Mac Catalyst' \
+  CODE_SIGNING_ALLOWED=NO \
+  build
 ```
 
 ## Contributing
