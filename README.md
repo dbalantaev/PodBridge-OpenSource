@@ -59,7 +59,8 @@ documented by libgpod. They still need real-world testing.
 
 | Status | Model | Notes |
 | --- | --- | --- |
-| ✅ Tested | **iPod Classic 160 GB, Late 2009** (commonly called 7th generation) | Tested with an iPhone 15 Pro. |
+| ✅ Tested | **iPod Classic 160 GB, Late 2009** (commonly called 7th generation), restored with macOS/Finder | Tested with an iPhone 15 Pro. |
+| 🧪 Experimental | iPod Classic 160 GB, Late 2009, restored with Windows/iTunes (FAT32) | Uses the same Classic Hash58 database format and is expected to work, but has not yet been tested on physical hardware. Start with one track and keep a full backup. |
 | 🧪 Experimental | iPod Classic 80 GB / 160 GB (2007) and iPod Classic 120 GB (2008) | Uses the Classic Hash58 database and Classic artwork formats. |
 | 🧪 Experimental | iPod Video 5th / 5.5th generation | Uses an unsigned `iTunesDB` and 100 × 100 / 200 × 200 artwork caches. |
 | 🧪 Experimental | iPod nano 1st / 2nd generation | Uses an unsigned `iTunesDB` and 42 × 42 / 100 × 100 artwork caches. |
@@ -70,6 +71,12 @@ documented by libgpod. They still need real-world testing.
 After you select the iPod destination, PodBridge asks for the exact model and
 uses the matching checksum and artwork profile. The app cannot verify that the
 model you chose matches the hardware, so choose carefully.
+
+Restore format also matters for the current test coverage. The known-good
+configuration is the 160 GB Classic restored with macOS/Finder. A
+Windows-restored FAT32 Classic uses the same on-iPod library format, and
+PodBridge intentionally avoids Mac-only filesystem features, but that exact
+configuration still needs a real-device test.
 
 ## Getting started
 
@@ -176,10 +183,10 @@ working, and keep a separate full backup of the iPod.
 An iPod Classic database is signed with an identifier unique to that device.
 PodBridge reads it from `iPod_Control/Device/SysInfo` or `SysInfoExtended`.
 
-Those files can be empty after an iPod restore. In that case, PodBridge will
-stop before changing the library and show commands for retrieving the ID on
-macOS, Windows, or Linux. Enter it once and PodBridge will reuse it for that
-iPod.
+Those files can be empty after an iPod restore, including a Windows/iTunes
+restore. In that case, PodBridge will stop before changing the library and show
+commands for retrieving the ID on macOS, Windows, or Linux. Enter it once and
+PodBridge will reuse it for that iPod.
 
 ## Diagnostics
 
