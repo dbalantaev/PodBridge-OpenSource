@@ -249,6 +249,8 @@ final class MusicTransferViewModel: ObservableObject {
         errorMessage = nil
         AppLogger.scan("Source scan started", level: .info)
         Task {
+            let access = sourceFolder.startAccessingSecurityScopedResource()
+            defer { if access { sourceFolder.stopAccessingSecurityScopedResource() } }
             do {
                 let found = try await MusicTransferEngine.scan(folder: sourceFolder)
                 let foundPlaylists = try await MusicTransferEngine.scanPlaylists(folder: sourceFolder, files: found)

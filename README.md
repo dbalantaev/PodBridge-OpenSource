@@ -86,7 +86,7 @@ first track with PodBridge:
 1. Connect the iPod to the Mac and select it in Finder.
 2. In **General**, enable **Enable disk use** (also shown as “Use iPod as a
    disk”), then click **Apply**. This keeps the iPod volume mounted so that a
-   future PodBridge Mac app can access the hidden `iPod_Control` folder.
+   PodBridge Mac Catalyst build can access the hidden `iPod_Control` folder.
 3. Turn off **Automatically sync when this iPod is connected**. Do not enable
    music syncing in Finder/Music.
 4. After using the iPod as a disk, always eject it from Finder before
@@ -98,8 +98,8 @@ PodBridge has become the music manager.
 
 ### Do not mix PodBridge with desktop iPod sync
 
-Once PodBridge has added music to an iPod, do **not** connect that iPod to
-Finder/Music on macOS or iTunes on Windows to sync music in the usual way.
+Once PodBridge has added music to an iPod, do **not** use Finder/Music on
+macOS or iTunes on Windows to sync music in the usual way.
 PodBridge writes the Classic `iTunesDB` directly; it does not implement
 Apple's desktop synchronisation protocol or every piece of sync state that
 Finder/Music and iTunes expect to own. The desktop app can therefore consider
@@ -115,10 +115,10 @@ iPods; it is not caused by FAT32.
 
 ### What you need
 
-- An iPhone running iOS 17 or later.
-- A Mac with Xcode 26 or later to install the app.
+- A Mac running macOS 14 or later, with Xcode 26 or later to install the app.
 - A supported iPod running Apple’s original firmware.
-- A cable or adapter that lets the iPod appear in the iPhone Files picker.
+- Either an iPhone running iOS 17 or later with a cable/adapter that lets the
+  iPod appear in the Files picker, or a Mac with the iPod enabled for disk use.
 
 ### Install PodBridge on your iPhone
 
@@ -143,6 +143,28 @@ A free Apple ID is enough. A paid Apple Developer membership is not required.
 
 Apps installed with a free Apple ID usually need to be installed again after
 seven days. Reinstalling the iPhone app does not change anything on the iPod.
+
+### Run PodBridge on a Mac
+
+Both app targets also build as Mac Catalyst apps. This is a direct iPod library
+manager, not a Music/Finder plug-in: Finder mounts and ejects the iPod, while
+PodBridge reads and writes its music library.
+
+1. Follow [Prepare an iPod for PodBridge on a Mac](#prepare-an-ipod-for-podbridge-on-a-mac)
+   after restoring the iPod.
+2. Open `PodBridge.xcodeproj`. Select **PodBridge** for the standard build, or
+   **PodBridgeALACarte** for the self-hosted ALACarte build.
+3. In Xcode’s run destination menu, choose **My Mac (Mac Catalyst)**, then
+   press **Run**.
+4. In PodBridge, choose a source music folder and choose the root of the
+   mounted iPod volume as the destination. Grant the folder-access prompt when
+   macOS shows it.
+5. Wait for the verified transfer to finish, then eject the iPod in Finder.
+
+Do not use **Sync**, **Update**, or **Restore** in Finder after PodBridge has
+managed the iPod library. The standard `PodBridge` and `PodBridgeALACarte`
+targets remain separate on both iPhone and Mac; the standard target contains no
+ALACarte code or local-network permission.
 
 ### Add your first track
 
@@ -176,8 +198,8 @@ Use the [PodBridge-compatible ALACarte fork](https://github.com/dbalantaev/alaca
    `http://<computer-address>:7373`, and complete ALACarte's initial setup.
 4. In **ALACarte → Settings → Library output**, choose **ALAC**, not FLAC.
    Classic iPods and PodBridge do not support FLAC.
-5. In Xcode, select the **PodBridgeALACarte** scheme and your iPhone, then press
-   **Run**.
+5. In Xcode, select the **PodBridgeALACarte** scheme and either your iPhone or
+   **My Mac (Mac Catalyst)**, then press **Run**.
 6. In PodBridgeALACarte, choose **Self-hosted library**, enter the address of
    your server and its username/password, then browse or import music.
 
@@ -257,6 +279,17 @@ xcodebuild test \
   -scheme PodBridgeALACarte \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   CODE_SIGNING_ALLOWED=NO
+```
+
+To build either app for Mac Catalyst, substitute its scheme in this command:
+
+```bash
+xcodebuild \
+  -project PodBridge.xcodeproj \
+  -scheme PodBridge \
+  -destination 'platform=macOS,variant=Mac Catalyst' \
+  CODE_SIGNING_ALLOWED=NO \
+  build
 ```
 
 ## Contributing
