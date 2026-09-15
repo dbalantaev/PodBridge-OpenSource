@@ -37,6 +37,9 @@ final class MusicTransferViewModel: ObservableObject {
     @Published private(set) var isRestoring = false
     @Published private(set) var isManagingLibrary = false
     @Published private(set) var artworkSearchProgress: IPodSyncEngine.ArtworkSearchProgress?
+#if PODBRIDGE_ALACARTE
+    @Published private(set) var alacarteStatus: String?
+#endif
     @Published private(set) var destinationNeedsFirewireID = false
     @Published var errorMessage: String?
 
@@ -372,6 +375,96 @@ final class MusicTransferViewModel: ObservableObject {
             AppLogger.device("Storage capacity unavailable error=\(error.localizedDescription)", level: .error)
         }
     }
+
+#if PODBRIDGE_ALACARTE
+    func importFromALACarte(client: ALACarteClient, items selectedItems: [ALACarteLibraryItem]) {
+        guard let destinationFolder else {
+            errorMessage = PodBridgeError.noDestinationFolder.localizedDescription
+            return
+        }
+        guard destinationDeviceProfile != nil else {
+            errorMessage = PodBridgeError.deviceModelRequired.localizedDescription
+            return
+        }
+        guard !destinationNeedsFirewireID, !isCopying, !selectedItems.isEmpty else { return }
+
+        copyTask?.cancel()
+        isCopying = true
+        copiedCount = 0
+        resultMessage = nil
+        errorMessage = nil
+        alacarteStatus = "Preparing \(selectedItems.count) selected items…"
+        copyTask = Task {
+            var downloadedFolders: [URL] = []
+            let destinationAccess = destinationFolder.startAccessingSecurityScopedResource()
+            defer {
+                for folder in downloadedFolders { try? FileManager.default.removeItem(at: folder) }
+                if destinationAccess { destinationFolder.stopAccessingSecurityScopedResource() }
+                alacarteStatus = nil
+                isCopying = false
+                copyTask = nil
+            }
+            do {
+                var combinedFiles: [MusicFile] = []
+                var combinedPlaylists: [SourcePlaylist] = []
+                for (itemIndex, item) in selectedItems.enumerated() {
+                    try Task.checkCancellation()
+                    alacarteStatus = "Downloading \(itemIndex + 1) of \(selectedItems.count): \(item.title)"
+                    let folder = try await client.download(item) { completed, total in
+                        await MainActor.run {
+                            self.alacarteStatus = "Downloading \(itemIndex + 1) of \(selectedItems.count): \(completed) of \(total) files"
+                        }
+                    }
+                    downloadedFolders.append(folder)
+                    let found = try await MusicTransferEngine.scan(folder: folder)
+                    let foundPlaylists = try await MusicTransferEngine.scanPlaylists(folder: folder, files: found)
+                    guard !found.isEmpty else { throw ALACarteError.noCompatibleAudio }
+                    let fileOffset = combinedFiles.count
+                    combinedFiles.append(contentsOf: found)
+                    combinedPlaylists.append(contentsOf: foundPlaylists.map { playlist in
+                        SourcePlaylist(
+                            name: playlist.name,
+                            fileIndices: playlist.fileIndices.map { $0 + fileOffset },
+                            artworkData: playlist.artworkData
+                        )
+                    })
+                }
+
+                files = combinedFiles
+                playlists = combinedPlaylists
+                alacarteStatus = "Writing \(combinedFiles.count) tracks to the iPod…"
+                let result = try await IPodSyncEngine.sync(
+                    files: combinedFiles,
+                    playlists: combinedPlaylists,
+                    root: destinationFolder
+                ) { count in
+                    await MainActor.run {
+                        self.copiedCount = count
+                        self.alacarteStatus = "Writing to iPod: \(count) of \(combinedFiles.count) tracks"
+                    }
+                }
+                existingTrackCount = result.total
+                let library = try IPodSyncEngine.library(root: destinationFolder)
+                libraryTracks = library.tracks
+                libraryPlaylists = library.playlists
+                refreshStorage(for: destinationFolder)
+                backups = try IPodSyncEngine.backups(root: destinationFolder)
+                let reused = result.exactDuplicatesReused + result.metadataDuplicatesReused
+                resultMessage = "Imported \(selectedItems.count) selections: \(result.added) new tracks, \(reused) reused, and \(result.playlistsAdded) playlists. Backup: \(result.backupURL.lastPathComponent)."
+                files = []
+                playlists = []
+            } catch is CancellationError {
+                resultMessage = "ALACarte import was cancelled before completion."
+            } catch {
+                errorMessage = error.localizedDescription
+                AppLogger.sync(
+                    "ALACarte import failed items=\(selectedItems.count) error=\(error.localizedDescription)",
+                    level: .error
+                )
+            }
+        }
+    }
+#endif
 
     func deleteTrack(_ track: ClassicTrack) {
         guard let destinationFolder, !isManagingLibrary, deletionBackups.isEmpty else { return }

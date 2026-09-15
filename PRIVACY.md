@@ -17,6 +17,22 @@ diagnostic logs, or file paths.
 Local PodBridge data can be removed by deleting the app. Backups written to an
 iPod remain on that iPod until the user removes them.
 
+## Optional self-hosted ALACarte connection
+
+This section applies only to the separately built `PodBridgeALACarte` target.
+The standard `PodBridge` target contains no ALACarte client. When the user
+chooses the self-hosted library feature, PodBridgeALACarte connects only to the
+server address entered by that user. The server address and username are stored
+in the app's local preferences. The password is used to sign in and is not
+saved; the resulting session token is stored in the iPhone Keychain.
+
+The user's own server receives the network address of the iPhone and requests
+for the selected library items. Compatible audio and playlist files are copied
+to temporary app storage, written to the selected iPod, and then deleted from
+temporary storage. PodBridge does not send the server address, credentials,
+library data, or audio files to the project author or to a PodBridge-operated
+service.
+
 ## Online artwork search
 
 Online artwork search is optional and runs only after the user requests it.
