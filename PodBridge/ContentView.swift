@@ -1986,72 +1986,25 @@ private struct PodBridgeIPodClassicArtwork: View {
     }
 }
 
-/// A neutral, recognisable device silhouette. iPod storage does not expose the
-/// physical case colour, so the app intentionally never guesses it.
 private struct PodBridgeIPodDeviceArtwork: View {
     let profile: IPodDeviceProfile?
 
-    private var bodyAspect: CGFloat {
+    private var assetName: String {
         switch profile {
-        case .nano3: 1.20
-        case .nano4: 0.47
-        case .nano1And2: 0.46
-        default: 0.60
-        }
-    }
-
-    private var screenFraction: CGFloat {
-        switch profile {
-        case .video5: 0.32
-        case .nano3: 0.36
-        case .nano4: 0.28
-        default: 0.38
+        case .classic7: "IPodClassic7"
+        case .classic6: "IPodClassic6"
+        case .video5: "IPodVideo5"
+        case .nano1And2: "IPodNano12"
+        case .nano3: "IPodNano3"
+        case .nano4: "IPodNano4"
+        case nil: "IPodClassic7"
         }
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            let height = proxy.size.height
-            let width = min(proxy.size.width, height * bodyAspect)
-            let x = (proxy.size.width - width) / 2
-            let bezel = max(3, width * 0.075)
-            ZStack {
-                RoundedRectangle(cornerRadius: width * (profile == .nano4 ? 0.30 : 0.12), style: .continuous)
-                    .fill(.white.opacity(0.94))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: width * (profile == .nano4 ? 0.30 : 0.12), style: .continuous)
-                            .stroke(.white.opacity(0.65), lineWidth: 1)
-                    )
-                    .frame(width: width, height: height)
-                    .position(x: x + width / 2, y: height / 2)
-
-                RoundedRectangle(cornerRadius: max(2, width * 0.05), style: .continuous)
-                    .fill(Color.black.opacity(0.84))
-                    .frame(width: width - bezel * 2, height: height * screenFraction)
-                    .position(x: x + width / 2, y: height * (profile == .nano3 ? 0.38 : 0.31))
-
-                if profile != .nano3 && profile != .nano4 {
-                    Circle()
-                        .fill(Color(.systemGray5))
-                        .overlay(Circle().stroke(Color.black.opacity(0.10), lineWidth: 1))
-                        .frame(width: width * 0.54, height: width * 0.54)
-                        .overlay(Circle().fill(.white).frame(width: width * 0.17, height: width * 0.17))
-                        .position(x: x + width / 2, y: height * 0.70)
-                } else if profile == .nano3 {
-                    Circle()
-                        .fill(Color(.systemGray5))
-                        .frame(width: height * 0.22, height: height * 0.22)
-                        .overlay(Circle().fill(.white).frame(width: height * 0.07, height: height * 0.07))
-                        .position(x: x + width * 0.73, y: height * 0.53)
-                } else {
-                    Circle()
-                        .fill(Color(.systemGray5))
-                        .frame(width: width * 0.65, height: width * 0.65)
-                        .overlay(Circle().fill(.white).frame(width: width * 0.20, height: width * 0.20))
-                        .position(x: x + width / 2, y: height * 0.68)
-                }
-            }
-        }
+        Image(assetName)
+            .resizable()
+            .scaledToFit()
         .accessibilityHidden(true)
     }
 }
