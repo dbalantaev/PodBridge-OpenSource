@@ -1,7 +1,7 @@
 <h1 align="center">PodBridge</h1>
 
 <p align="center">
-  Copy music from Files on your iPhone straight to a click-wheel iPod.
+  Copy music from Files on your iPhone or iPad straight to a click-wheel iPod.
 </p>
 
 For the code-level structure and ownership boundaries, see
@@ -31,7 +31,7 @@ For the code-level structure and ownership boundaries, see
 </p>
 
 PodBridge lets you add music to a stock-firmware click-wheel iPod without going
-back to a desktop sync app every time. Pick a folder on your iPhone, select the
+back to a desktop sync app every time. Pick a folder on your iPhone or iPad, select the
 iPod in Files, and PodBridge adds the tracks to its native music library.
 
 PodBridge works only with music you are authorized to use. It does not
@@ -42,7 +42,7 @@ single track before transferring a large folder.
 
 ## Highlights
 
-- Transfers music directly from an iPhone to a supported iPod.
+- Transfers music directly from an iPhone or iPad to a supported iPod.
 - Supports AAC, AIFF, M4A, M4B, MP3, and WAV files.
 - Reads title, artist, album, duration, bitrate, and embedded artwork.
 - Imports `.m3u` and `.m3u8` playlists while keeping their track order.
@@ -125,13 +125,13 @@ iPods; it is not caused by FAT32.
 ### What you need
 
 - A Mac running macOS 14 or later, with Xcode 26 or later to install the app.
-- An iPhone running iOS 17 or later.
+- An iPhone or iPad running iOS/iPadOS 17 or later.
 - A supported iPod running Apple’s original firmware.
-- A cable/adapter that lets the iPod appear in the iPhone Files picker, or a
+- A cable/adapter that lets the iPod appear in the iPhone or iPad Files picker, or a
   Mac with the iPod enabled for disk use. Files support depends on the adapter,
-  iPhone model, and iOS version; PodBridge itself supports iOS 17 and later.
+  device model, and OS version; PodBridge itself supports iOS/iPadOS 17 and later.
 
-### Install PodBridge on your iPhone
+### Install PodBridge on your iPhone or iPad
 
 A free Apple ID is enough. A paid Apple Developer membership is not required.
 
@@ -143,17 +143,17 @@ A free Apple ID is enough. A paid Apple Developer membership is not required.
      It contains no ALACarte client code or local-server permission.
    - **PodBridgeALACarte** is the Xcode/sideload target for connecting to your
      own ALACarte server.
-4. Connect and unlock your iPhone. Tap **Trust** if either device asks.
+4. Connect and unlock your iPhone or iPad. Tap **Trust** if either device asks.
 5. In Xcode, select the PodBridge project and open **Signing & Capabilities**.
    Choose your Apple ID under **Team**. If it is not listed, add it in
    **Xcode → Settings → Accounts**.
-6. Choose your iPhone in Xcode’s device menu and press the triangular **Run**
+6. Choose your iPhone or iPad in Xcode’s device menu and press the triangular **Run**
    button.
 7. If iOS blocks the first launch, open **Settings → General → VPN & Device
    Management** and trust your developer profile.
 
 Apps installed with a free Apple ID usually need to be installed again after
-seven days. Reinstalling the iPhone app does not change anything on the iPod.
+seven days. Reinstalling the app does not change anything on the iPod.
 
 ### Run PodBridge on a Mac
 
@@ -179,7 +179,7 @@ ALACarte code or local-network permission.
 
 ### Add your first track
 
-1. Connect the iPod to the iPhone and check that it appears in Files.
+1. Connect the iPod to the iPhone or iPad and check that it appears in Files.
 2. Open PodBridge and choose a folder containing one music file.
 3. Choose the root folder of the iPod as the destination.
 4. Start the transfer and keep both devices connected until it finishes.

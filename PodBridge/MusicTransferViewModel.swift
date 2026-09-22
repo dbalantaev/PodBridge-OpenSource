@@ -27,6 +27,7 @@ struct TransferCompletion: Identifiable, Equatable {
     let addedTracks: Int
     let destinationName: String
     let playlists: [Playlist]
+    let backupName: String?
 }
 
 struct LibraryRepairCompletion: Identifiable, Equatable {
@@ -563,9 +564,12 @@ final class MusicTransferViewModel: ObservableObject {
                 libraryTracks = library.tracks
                 libraryPlaylists = library.playlists
                 refreshStorage(for: destinationFolder)
+                if let refreshedBackups = try? IPodSyncEngine.backups(root: destinationFolder) {
+                    backups = refreshedBackups
+                }
                 let reused = result.exactDuplicatesReused + result.metadataDuplicatesReused
                 resultMessage = "Added \(result.added) tracks, reused \(reused) duplicates, added \(result.playlistsAdded) playlists, and \(result.coversAdded) covers. Backup: \(result.backupURL.lastPathComponent)."
-                completeTransfer(addedTracks: result.added)
+                completeTransfer(addedTracks: result.added, backupName: result.backupURL.lastPathComponent)
                 AppLogger.sync(
                     "Sync UI completed added=\(result.added) exactDuplicatesReused=\(result.exactDuplicatesReused) metadataDuplicatesReused=\(result.metadataDuplicatesReused) playlists=\(result.playlistsAdded) covers=\(result.coversAdded) total=\(result.total) backup=\(result.backupURL.lastPathComponent)",
                     level: .info
@@ -631,7 +635,7 @@ final class MusicTransferViewModel: ObservableObject {
         }
     }
 
-    private func completeTransfer(addedTracks: Int) {
+    private func completeTransfer(addedTracks: Int, backupName: String? = nil) {
         let summary = playlists
             .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .prefix(3)
@@ -640,7 +644,8 @@ final class MusicTransferViewModel: ObservableObject {
         transferCompletion = TransferCompletion(
             addedTracks: addedTracks,
             destinationName: destinationName.isEmpty ? "your iPod" : destinationName,
-            playlists: summary
+            playlists: summary,
+            backupName: backupName
         )
         files = []
         playlists = []
@@ -732,7 +737,7 @@ final class MusicTransferViewModel: ObservableObject {
                 backups = try IPodSyncEngine.backups(root: destinationFolder)
                 let reused = result.exactDuplicatesReused + result.metadataDuplicatesReused
                 resultMessage = "Imported \(selectedItems.count) selections: \(result.added) new tracks, \(reused) reused, and \(result.playlistsAdded) playlists. Backup: \(result.backupURL.lastPathComponent)."
-                completeTransfer(addedTracks: result.added)
+                completeTransfer(addedTracks: result.added, backupName: result.backupURL.lastPathComponent)
             } catch is CancellationError {
                 resultMessage = "ALACarte import was cancelled before completion."
             } catch {
@@ -781,7 +786,8 @@ final class MusicTransferViewModel: ObservableObject {
                     destinationName: "Demo iPod",
                     playlists: selectedItems.filter { $0.kind == .playlist }.prefix(3).map {
                         TransferCompletion.Playlist(name: $0.title, trackCount: $0.trackCount)
-                    }
+                    },
+                    backupName: nil
                 )
                 self.resultMessage = "Added \(totalTracks) demo tracks from ALACarte. The demo resets when PodBridge restarts."
                 self.copiedCount = 0

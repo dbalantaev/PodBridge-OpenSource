@@ -888,7 +888,7 @@ private struct ALACarteWriteProgressView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .interactiveDismissDisabled(completion == nil && model.isCopying)
-        .onChange(of: model.isCopying) { copying in
+        .onChange(of: model.isCopying) { _, copying in
             guard !copying, let result = model.transferCompletion else { return }
             completion = result
         }
