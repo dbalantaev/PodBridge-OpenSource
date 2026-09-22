@@ -9,6 +9,24 @@ import Foundation
 /// Metadata reading is intentionally isolated from destination writes so scans
 /// can be cancelled before any iPod state is changed.
 enum AudioMetadataReader {
+    /// Reads only the fields needed to identify a source file before import.
+    /// Unlike `read`, this deliberately avoids loading stream properties.
+    static func preview(_ file: MusicFile) async -> MusicFile.Preview? {
+        let asset = AVURLAsset(url: file.sourceURL)
+        guard let metadata = try? await asset.load(.commonMetadata) else { return nil }
+        var values: [AVMetadataKey: String] = [:]
+        for item in metadata {
+            guard let key = item.commonKey,
+                  let value = try? await item.load(.stringValue) else { continue }
+            values[key] = value
+        }
+        let title = values[.commonKeyTitle]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let artist = values[.commonKeyArtist]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let album = values[.commonKeyAlbumName]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !title.isEmpty || !artist.isEmpty || !album.isEmpty else { return nil }
+        return MusicFile.Preview(title: title, artist: artist, album: album)
+    }
+
     /// Release identity used to distinguish editions while grouping albums.
     struct AlbumIdentity: Sendable, Equatable {
         let albumArtist: String

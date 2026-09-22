@@ -8,7 +8,7 @@ For the code-level structure and ownership boundaries, see
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
 <p align="center">
-  <img src="https://img.shields.io/badge/iOS-17%2B-007AFF?style=flat-square" alt="iOS 17+">
+  <img src="https://img.shields.io/badge/iOS-15%2B-007AFF?style=flat-square" alt="iOS 15+">
   <img src="https://img.shields.io/badge/iPod-Classic%20%7C%20Video%20%7C%20nano-8E8E93?style=flat-square" alt="iPod Classic, Video, and nano">
   <img src="https://img.shields.io/badge/license-MPL--2.0-4D4D4D?style=flat-square" alt="Mozilla Public License 2.0">
   <img src="https://img.shields.io/badge/status-experimental-F59E0B?style=flat-square" alt="Experimental">
@@ -31,6 +31,9 @@ For the code-level structure and ownership boundaries, see
 PodBridge lets you add music to a stock-firmware click-wheel iPod without going
 back to a desktop sync app every time. Pick a folder on your iPhone, select the
 iPod in Files, and PodBridge adds the tracks to its native music library.
+
+PodBridge works only with music you are authorized to use. It does not
+distribute music or imply an affiliation with Apple.
 
 The project is still experimental. Back up your iPod before using it and try a
 single track before transferring a large folder.
@@ -116,9 +119,11 @@ iPods; it is not caused by FAT32.
 ### What you need
 
 - A Mac running macOS 14 or later, with Xcode 26 or later to install the app.
+- An iPhone running iOS 15 or later.
 - A supported iPod running Apple’s original firmware.
-- Either an iPhone running iOS 17 or later with a cable/adapter that lets the
-  iPod appear in the Files picker, or a Mac with the iPod enabled for disk use.
+- A cable/adapter that lets the iPod appear in the iPhone Files picker, or a
+  Mac with the iPod enabled for disk use. Files support depends on the adapter,
+  iPhone model, and iOS version; PodBridge itself supports iOS 15 and later.
 
 ### Install PodBridge on your iPhone
 
@@ -200,8 +205,9 @@ Use the [PodBridge-compatible ALACarte fork](https://github.com/dbalantaev/alaca
    Classic iPods and PodBridge do not support FLAC.
 5. In Xcode, select the **PodBridgeALACarte** scheme and either your iPhone or
    **My Mac (Mac Catalyst)**, then press **Run**.
-6. In PodBridgeALACarte, choose **Self-hosted library**, enter the address of
-   your server and its username/password, then browse or import music.
+6. In PodBridgeALACarte, choose **ALACarte**, select Auto, Local, or Internet,
+   enter the address of your server and its username/password, then browse or
+   import music. Auto tries the local address before the internet address.
 
 For a server on the same Wi-Fi network, use its local HTTP address and port
 `7373`. For remote access, use HTTPS through a private network. Do not expose
@@ -277,7 +283,7 @@ To build and test the self-hosted target:
 xcodebuild test \
   -project PodBridge.xcodeproj \
   -scheme PodBridgeALACarte \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
   CODE_SIGNING_ALLOWED=NO
 ```
 

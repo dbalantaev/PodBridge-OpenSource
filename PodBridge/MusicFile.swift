@@ -11,9 +11,33 @@ struct MusicFile: Identifiable, Hashable, Sendable {
     let sourceURL: URL
     let relativePath: String
     let byteCount: Int64
+    let preview: Preview?
+
+    struct Preview: Hashable, Sendable {
+        let title: String
+        let artist: String
+        let album: String
+    }
+
+    init(sourceURL: URL, relativePath: String, byteCount: Int64, preview: Preview? = nil) {
+        self.sourceURL = sourceURL
+        self.relativePath = relativePath
+        self.byteCount = byteCount
+        self.preview = preview
+    }
 
     var id: String { sourceURL.path }
     var name: String { sourceURL.lastPathComponent }
+
+    var displayTitle: String {
+        let value = preview?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return value.isEmpty ? sourceURL.deletingPathExtension().lastPathComponent : value
+    }
+
+    var displayArtist: String? {
+        let value = preview?.artist.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return value.isEmpty || value == "Unknown Artist" ? nil : value
+    }
 }
 
 struct SourcePlaylist: Identifiable, Hashable, Sendable {
@@ -23,6 +47,18 @@ struct SourcePlaylist: Identifiable, Hashable, Sendable {
     var artworkFilename: String? = nil
 
     var id: String { name + ":" + fileIndices.map(String.init).joined(separator: ",") }
+}
+
+struct SourceScanReport: Sendable {
+    let files: [MusicFile]
+    let skippedAudioByExtension: [String: Int]
+
+    var skippedAudioCount: Int { skippedAudioByExtension.values.reduce(0, +) }
+}
+
+struct SourceImportSelection: Sendable {
+    let files: [MusicFile]
+    let playlists: [SourcePlaylist]
 }
 
 struct TransferSummary: Sendable {

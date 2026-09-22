@@ -952,6 +952,47 @@ enum ClassicDatabase {
         return EditResult(data: signed, library: verified)
     }
 
+    /// Replaces a playlist's ordered members while retaining every audio track.
+    static func replacingPlaylistMembers(
+        existing: Data,
+        playlistIndex: Int,
+        trackIDs: [UInt32],
+        firewireID: Data
+    ) throws -> EditResult {
+        let library = try parse(existing)
+        guard library.playlists.indices.contains(playlistIndex) else { throw PodBridgeError.playlistNotFound }
+        let validIDs = Set(library.tracks.map(\.id))
+        guard trackIDs.allSatisfy(validIDs.contains) else { throw PodBridgeError.trackNotFound }
+        var expectedLibrary = library
+        expectedLibrary.playlists[playlistIndex].trackIDs = trackIDs
+        let rootHeader = Int(try existing.littleUInt32(at: 4))
+        let sections = try topLevelSections(existing, start: rootHeader)
+        var output = Data(existing.prefix(rootHeader))
+        for section in sections {
+            if section.type == 2 || section.type == 3 {
+                output.append(try playlistSectionReplacingMembers(
+                    existing,
+                    range: section.range,
+                    playlistIndex: playlistIndex,
+                    trackIDs: trackIDs
+                ))
+            } else {
+                output.append(existing[section.range])
+            }
+        }
+        try output.setLittleUInt32(UInt32(output.count), at: 8)
+        let signed = try Hash58.sign(output, firewireID: firewireID)
+        let verified = try parse(signed)
+        let diagnostics = try inspect(signed, firewireID: firewireID)
+        guard verified == expectedLibrary,
+              diagnostics.masterPlaylistFound,
+              diagnostics.playlistSectionsConsistent,
+              diagnostics.sortIndexesValid,
+              diagnostics.jumpTablesValid,
+              diagnostics.hash58Valid else { throw PodBridgeError.databaseVerificationFailed }
+        return EditResult(data: signed, library: verified)
+    }
+
     /// Adds or replaces artwork references for selected tracks.
     static func addingArtwork(
         existing: Data,
@@ -1691,6 +1732,64 @@ enum ClassicDatabase {
         guard oldCount > 1 else { throw PodBridgeError.invalidDatabase }
         try output.setLittleUInt32(UInt32(output.count), at: 8)
         try output.setLittleUInt32(oldCount - 1, at: listOffset + 8)
+        return output
+    }
+
+    private static func playlistSectionReplacingMembers(
+        _ data: Data,
+        range: Range<Int>,
+        playlistIndex: Int,
+        trackIDs: [UInt32]
+    ) throws -> Data {
+        let source = Data(data[range])
+        let listOffset = Int(try source.littleUInt32(at: 4))
+        guard source.ascii(at: listOffset, length: 4) == "mhlp" else { throw PodBridgeError.invalidDatabase }
+        let listHeader = Int(try source.littleUInt32(at: listOffset + 4))
+        var cursor = listOffset + listHeader
+        var output = Data(source.prefix(cursor))
+        var userIndex = 0
+        var replaced = false
+        while cursor + 24 <= source.count, source.ascii(at: cursor, length: 4) == "mhyp" {
+            let length = Int(try source.littleUInt32(at: cursor + 8))
+            guard length > 0, cursor + length <= source.count else { throw PodBridgeError.invalidDatabase }
+            let record = Data(source[cursor..<(cursor + length)])
+            if try record.littleUInt32(at: 20) == 0 {
+                if userIndex == playlistIndex {
+                    output.append(try playlistRecordReplacingMembers(record, trackIDs: trackIDs))
+                    replaced = true
+                } else {
+                    output.append(record)
+                }
+                userIndex += 1
+            } else {
+                output.append(record)
+            }
+            cursor += length
+        }
+        guard cursor == source.count, replaced else { throw PodBridgeError.playlistNotFound }
+        try output.setLittleUInt32(UInt32(output.count), at: 8)
+        return output
+    }
+
+    private static func playlistRecordReplacingMembers(_ source: Data, trackIDs: [UInt32]) throws -> Data {
+        let header = Int(try source.littleUInt32(at: 4))
+        guard header >= 24, header <= source.count else { throw PodBridgeError.invalidDatabase }
+        var output = Data(source.prefix(header))
+        var cursor = header
+        while cursor + 16 <= source.count {
+            let length = Int(try source.littleUInt32(at: cursor + 8))
+            guard length > 0, cursor + length <= source.count else { throw PodBridgeError.invalidDatabase }
+            if source.ascii(at: cursor, length: 4) != "mhip" {
+                output.append(source[cursor..<(cursor + length)])
+            }
+            cursor += length
+        }
+        guard cursor == source.count else { throw PodBridgeError.invalidDatabase }
+        for (index, trackID) in trackIDs.enumerated() {
+            output.append(playlistItem(order: index, trackID: trackID))
+        }
+        try output.setLittleUInt32(UInt32(output.count), at: 8)
+        try output.setLittleUInt32(UInt32(trackIDs.count), at: 16)
         return output
     }
 

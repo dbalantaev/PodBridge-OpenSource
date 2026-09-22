@@ -26,3 +26,11 @@ BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
 IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
+
+## Online artwork services
+
+Artwork lookup is optional. When enabled by the user, PodBridge queries
+[MusicBrainz](https://musicbrainz.org/) and downloads artwork from the
+[Cover Art Archive](https://coverartarchive.org/). Those services are
+operated by MetaBrainz and are subject to their own terms and privacy policy.
+PodBridge does not redistribute their databases or claim ownership of artwork.

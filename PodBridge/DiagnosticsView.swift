@@ -1,23 +1,24 @@
-// SPDX-License-Identifier: MPL-2.0
-// Copyright (c) 2026 Dmitry Balantaev
-
 import SwiftUI
 import UIKit
 
 struct DiagnosticsDrawerView: View {
     @Environment(\.dismiss) private var dismiss
+#if DEBUG
+    var isEmulatingIPod = false
+    var emulateIPod: (() -> Void)?
+#endif
     @State private var logSize: Int64 = 0
     @State private var shareItem: DiagnosticShareItem?
     @State private var errorMessage: String?
     @State private var confirmingClear = false
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             Form {
                 Section("Environment") {
-                    LabeledContent("App") { Text(appVersion) }
-                    LabeledContent("System") { Text("\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)") }
-                    LabeledContent("Device") { Text(UIDevice.current.model) }
+                    PodBridgeLabeledContent("App") { Text(appVersion) }
+                    PodBridgeLabeledContent("System") { Text("\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)") }
+                    PodBridgeLabeledContent("Device") { Text(UIDevice.current.model) }
                 }
                 Section {
                     NavigationLink {
@@ -35,7 +36,7 @@ struct DiagnosticsDrawerView: View {
                     } label: {
                         Label("Clear logs", systemImage: "trash")
                     }
-                    LabeledContent("Log file size") {
+                    PodBridgeLabeledContent("Log file size") {
                         Text(ByteCountFormatter.string(fromByteCount: logSize, countStyle: .file))
                     }
                 } header: {
@@ -43,6 +44,22 @@ struct DiagnosticsDrawerView: View {
                 } footer: {
                     Text("The file survives app restarts and rotates at 4 MB. It can include filenames and playlist names, but never absolute paths, FirewireGuid, or media contents.")
                 }
+#if DEBUG
+                Section("Debug") {
+                    Button {
+                        emulateIPod?()
+                        dismiss()
+                    } label: {
+                        Label(
+                            isEmulatingIPod ? "Disconnect Emulated iPod" : "Emulate Connecting iPod",
+                            systemImage: isEmulatingIPod ? "eject.fill" : "ipod"
+                        )
+                    }
+                    Text("Creates a temporary iPod Classic 7G library with demo tracks. No physical iPod is modified.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+#endif
                 Section("Open") {
                     Text("Tap the bug button or shake the iPhone to reopen this drawer.")
                 }
@@ -117,10 +134,10 @@ struct DiagnosticLogsView: View {
     var body: some View {
         Group {
             if text.isEmpty {
-                ContentUnavailableView(
+                PodBridgeUnavailableView(
                     "No logs yet",
                     systemImage: "doc.text",
-                    description: Text("PodBridge diagnostics from current and previous runs will appear here.")
+                    description: Text("PodBridgePro diagnostics from current and previous runs will appear here.")
                 )
             } else {
                 ScrollView {
@@ -135,7 +152,7 @@ struct DiagnosticLogsView: View {
         .navigationTitle("Persistent log")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
                 Button("Refresh", systemImage: "arrow.clockwise", action: reload)
                 Button("Share", systemImage: "square.and.arrow.up", action: export)
                 Button("Clear", systemImage: "trash", role: .destructive) { confirmingClear = true }

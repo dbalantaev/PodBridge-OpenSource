@@ -444,6 +444,35 @@ final class ClassicDatabaseTests: XCTestCase {
         }
     }
 
+    func testReplacingPlaylistMembersPreservesTracksAndRequestedOrder() throws {
+        let first = track(id: 7, title: "First", artist: "Artist", album: "Album")
+        let second = track(id: 9, title: "Second", artist: "Artist", album: "Album")
+        let third = track(id: 11, title: "Third", artist: "Artist", album: "Album")
+        let original = try ClassicDatabase.build(
+            library: ClassicLibrary(
+                name: "My iPod",
+                tracks: [first, second, third],
+                playlists: [ClassicPlaylist(name: "Road Trip", trackIDs: [7, 9])]
+            ),
+            firewireID: firewireID,
+            databaseID: 99
+        )
+
+        let result = try ClassicDatabase.replacingPlaylistMembers(
+            existing: original,
+            playlistIndex: 0,
+            trackIDs: [11, 7],
+            firewireID: firewireID
+        )
+        let diagnostics = try ClassicDatabase.inspect(result.data, firewireID: firewireID)
+
+        XCTAssertEqual(result.library.tracks, [first, second, third])
+        XCTAssertEqual(result.library.playlists, [ClassicPlaylist(name: "Road Trip", trackIDs: [11, 7])])
+        XCTAssertTrue(diagnostics.playlistSectionsConsistent)
+        XCTAssertEqual(diagnostics.masterPlaylistMembers, 3)
+        XCTAssertTrue(diagnostics.hash58Valid)
+    }
+
     func testAddingArtworkLinksExistingTracksWithoutChangingPlaylists() throws {
         var first = track(id: 7, title: "First", artist: "Artist", album: "Album")
         var second = track(id: 9, title: "Second", artist: "Artist", album: "Album")

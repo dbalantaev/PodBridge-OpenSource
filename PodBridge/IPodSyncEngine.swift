@@ -419,6 +419,12 @@ enum IPodSyncEngine {
         }.value
     }
 
+    static func replacePlaylistMembers(index: Int, trackIDs: [UInt32], root: URL) async throws -> LibraryEditResult {
+        try await Task.detached(priority: .userInitiated) {
+            try editLibrarySynchronously(root: root, operation: .replacePlaylistMembers(index: index, trackIDs: trackIDs))
+        }.value
+    }
+
     static func editAlbumMetadata(
         trackIDs: [UInt32],
         update: AlbumMetadataUpdate,
@@ -594,10 +600,16 @@ enum IPodSyncEngine {
     static func findMissingArtwork(
         root: URL,
         lookup: ArtworkLookupService = ArtworkLookupService(),
+        replaceExistingPlaylistArtwork: Bool = true,
         progress: @escaping @Sendable (ArtworkSearchProgress) async -> Void
     ) async throws -> ArtworkSearchResult {
         let task = Task.detached(priority: .userInitiated) {
-            try await findMissingArtworkSynchronously(root: root, lookup: lookup, progress: progress)
+            try await findMissingArtworkSynchronously(
+                root: root,
+                lookup: lookup,
+                replaceExistingPlaylistArtwork: replaceExistingPlaylistArtwork,
+                progress: progress
+            )
         }
         return try await withTaskCancellationHandler {
             try await task.value
@@ -1017,6 +1029,7 @@ enum IPodSyncEngine {
         case playlist(index: Int, name: String)
         case createPlaylist(name: String, trackIDs: [UInt32])
         case removePlaylist(index: Int)
+        case replacePlaylistMembers(index: Int, trackIDs: [UInt32])
         case album(trackIDs: [UInt32], update: AlbumMetadataUpdate)
         case normalizeAlbumArtists([AlbumArtistEditPlan])
     }
@@ -1090,6 +1103,14 @@ enum IPodSyncEngine {
                 firewireID: firewireID
             )
             description = "playlist-delete index=\(index) tracksDeleted=false"
+        case let .replacePlaylistMembers(index, trackIDs):
+            edit = try ClassicDatabase.replacingPlaylistMembers(
+                existing: original,
+                playlistIndex: index,
+                trackIDs: trackIDs,
+                firewireID: firewireID
+            )
+            description = "playlist-members index=\(index) members=\(trackIDs.count)"
         case let .album(trackIDs, update):
             edit = try ClassicDatabase.editingAlbumMetadata(
                 existing: original,
@@ -1552,6 +1573,7 @@ enum IPodSyncEngine {
     private static func findMissingArtworkSynchronously(
         root: URL,
         lookup: ArtworkLookupService,
+        replaceExistingPlaylistArtwork: Bool,
         progress: @escaping @Sendable (ArtworkSearchProgress) async -> Void
     ) async throws -> ArtworkSearchResult {
         try Task.checkCancellation()
@@ -1595,6 +1617,7 @@ enum IPodSyncEngine {
         }
         let songGroups = Dictionary(grouping: originalLibrary.tracks.filter {
             playlistCompilationIDs.contains($0.id)
+                && ($0.artworkImageID == 0 || replaceExistingPlaylistArtwork)
         }) { track in
             "\(normalizedMetadata(track.artist))\u{0}\(normalizedMetadata(track.title))"
         }

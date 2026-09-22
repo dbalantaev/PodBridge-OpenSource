@@ -22,6 +22,22 @@ final class MusicTransferEngineTests: XCTestCase {
         XCTAssertEqual(files.map(\.relativePath), ["Album/01 Intro.mp3", "Album/02 Song.m4a"])
     }
 
+    func testScanReportCountsUnsupportedAudioWithoutCountingArtwork() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("a".utf8).write(to: root.appendingPathComponent("Song.m4a"))
+        try Data("b".utf8).write(to: root.appendingPathComponent("Lossless.flac"))
+        try Data("c".utf8).write(to: root.appendingPathComponent("Voice.opus"))
+        try Data("d".utf8).write(to: root.appendingPathComponent("cover.jpg"))
+
+        let report = try await MusicTransferEngine.scanWithReport(folder: root)
+
+        XCTAssertEqual(report.files.map(\.name), ["Song.m4a"])
+        XCTAssertEqual(report.skippedAudioByExtension, ["flac": 1, "opus": 1])
+        XCTAssertEqual(report.skippedAudioCount, 2)
+    }
+
     func testCopyCreatesSafeImportTreeAndDoesNotOverwrite() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -75,6 +91,32 @@ final class MusicTransferEngineTests: XCTestCase {
 
         XCTAssertEqual(playlists.map(\.name), ["Любимки"])
         XCTAssertEqual(playlists[0].fileIndices.map { files[$0].name }, ["002 Second.m4a", "001 First.m4a"])
+    }
+
+    func testImportSelectionRemapsPlaylistIndicesAndCanBeChangedAgain() {
+        let root = URL(fileURLWithPath: "/tmp/source")
+        let files = [
+            MusicFile(sourceURL: root.appendingPathComponent("A.m4a"), relativePath: "A.m4a", byteCount: 1),
+            MusicFile(sourceURL: root.appendingPathComponent("B.m4a"), relativePath: "B.m4a", byteCount: 2),
+            MusicFile(sourceURL: root.appendingPathComponent("C.m4a"), relativePath: "C.m4a", byteCount: 3)
+        ]
+        let playlists = [SourcePlaylist(name: "Mix", fileIndices: [2, 0, 1])]
+
+        let first = MusicTransferEngine.importSelection(
+            files: files,
+            playlists: playlists,
+            selectedIDs: Set([files[0].id, files[2].id])
+        )
+        let second = MusicTransferEngine.importSelection(
+            files: files,
+            playlists: playlists,
+            selectedIDs: Set(files.map(\.id))
+        )
+
+        XCTAssertEqual(first.files.map(\.name), ["A.m4a", "C.m4a"])
+        XCTAssertEqual(first.playlists[0].fileIndices, [1, 0])
+        XCTAssertEqual(second.files, files)
+        XCTAssertEqual(second.playlists, playlists)
     }
 
     func testM3UResolvesExportedAbsoluteAndWindowsPathsInsideSelectedFolder() async throws {

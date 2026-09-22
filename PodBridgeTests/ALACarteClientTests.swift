@@ -24,6 +24,8 @@ final class ALACarteClientTests: XCTestCase {
     func testLoginCompatibilityAndLibraryUseConfiguredServer() async throws {
         let client = makeClient { request in
             switch request.url?.path {
+            case "/api/auth/state":
+                return Self.response(request, json: #"{"authDisabled":false,"passwordSet":true,"authed":false}"#)
             case "/api/auth/login":
                 XCTAssertEqual(request.httpMethod, "POST")
                 XCTAssertEqual(request.value(forHTTPHeaderField: "Origin"), "http://server.local:7373")
@@ -59,6 +61,8 @@ final class ALACarteClientTests: XCTestCase {
     func testFLACOnlyExportReturnsActionableCompatibilityError() async throws {
         let client = makeClient { request in
             switch request.url?.path {
+            case "/api/auth/state":
+                return Self.response(request, json: #"{"authDisabled":false,"passwordSet":true,"authed":false}"#)
             case "/api/auth/login":
                 return Self.response(
                     request,
@@ -96,6 +100,29 @@ final class ALACarteClientTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+    }
+
+    func testLoginWorksWhenLegacyServerHasNoNewerEndpoints() async throws {
+        let client = makeClient { request in
+            XCTAssertEqual(request.url?.path, "/api/auth/login")
+            return Self.response(
+                request,
+                headers: ["Set-Cookie": "alacarte_session=test-session; Path=/; HttpOnly"],
+                json: #"{"ok":true}"#
+            )
+        }
+        try await client.login(username: "listener", password: "secret")
+        XCTAssertTrue(client.hasSavedSession)
+    }
+
+    func testAuthStateDecodesOptionalNewerServerEndpoint() async throws {
+        let client = makeClient { request in
+            XCTAssertEqual(request.url?.path, "/api/auth/state")
+            return Self.response(request, json: #"{"authDisabled":true,"passwordSet":false,"authed":true}"#)
+        }
+        let state = try await client.authState()
+        XCTAssertTrue(state.authDisabled)
+        XCTAssertTrue(state.authed)
     }
 
     private func makeClient(

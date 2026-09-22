@@ -12,9 +12,16 @@ enum MusicTransferEngine {
     static let supportedExtensions: Set<String> = [
         "aac", "aif", "aiff", "m4a", "m4b", "mp3", "wav",
     ]
+    private static let knownUnsupportedAudioExtensions: Set<String> = [
+        "ape", "flac", "mka", "ogg", "opus", "wma", "webm"
+    ]
 
     /// Recursively scans a source folder and returns supported audio in stable order.
     static func scan(folder: URL) async throws -> [MusicFile] {
+        try await scanWithReport(folder: folder).files
+    }
+
+    static func scanWithReport(folder: URL) async throws -> SourceScanReport {
         try await Task.detached(priority: .userInitiated) {
             let access = folder.startAccessingSecurityScopedResource()
             defer {
@@ -27,10 +34,15 @@ enum MusicTransferEngine {
 
             let rootPath = folder.standardizedFileURL.path
             var files: [MusicFile] = []
+            var skippedAudioByExtension: [String: Int] = [:]
 
             for fileURL in candidates {
                 try Task.checkCancellation()
-                guard supportedExtensions.contains(fileURL.pathExtension.lowercased()) else {
+                let fileExtension = fileURL.pathExtension.lowercased()
+                guard supportedExtensions.contains(fileExtension) else {
+                    if knownUnsupportedAudioExtensions.contains(fileExtension) {
+                        skippedAudioByExtension[fileExtension, default: 0] += 1
+                    }
                     continue
                 }
                 let values = try fileURL.resourceValues(forKeys: Set(keys))
@@ -46,8 +58,22 @@ enum MusicTransferEngine {
                     MusicFile(
                         sourceURL: fileURL,
                         relativePath: relativePath,
-                        byteCount: Int64(values.fileSize ?? 0)
+                        byteCount: Int64(values.fileSize ?? 0),
+                        preview: nil
                     )
+                )
+            }
+
+            // Import review should speak in music metadata, not opaque filenames.
+            // A failed/absent tag is harmless: the UI falls back to the filename.
+            for index in files.indices {
+                try Task.checkCancellation()
+                let file = files[index]
+                files[index] = MusicFile(
+                    sourceURL: file.sourceURL,
+                    relativePath: file.relativePath,
+                    byteCount: file.byteCount,
+                    preview: await AudioMetadataReader.preview(file)
                 )
             }
 
@@ -55,7 +81,7 @@ enum MusicTransferEngine {
                 $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending
             }
             AppLogger.scan("Supported audio enumeration tracks=\(result.count)", level: .debug)
-            return result
+            return SourceScanReport(files: result, skippedAudioByExtension: skippedAudioByExtension)
         }.value
     }
 
@@ -113,6 +139,27 @@ enum MusicTransferEngine {
             }
             return playlists.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         }.value
+    }
+
+    static func importSelection(
+        files: [MusicFile],
+        playlists: [SourcePlaylist],
+        selectedIDs: Set<String>
+    ) -> SourceImportSelection {
+        let keptOldIndices = files.indices.filter { selectedIDs.contains(files[$0].id) }
+        let newIndexByOldIndex = Dictionary(uniqueKeysWithValues: keptOldIndices.enumerated().map { ($0.element, $0.offset) })
+        let selectedFiles = keptOldIndices.map { files[$0] }
+        let selectedPlaylists = playlists.compactMap { playlist -> SourcePlaylist? in
+            let remapped = playlist.fileIndices.compactMap { newIndexByOldIndex[$0] }
+            guard !remapped.isEmpty else { return nil }
+            return SourcePlaylist(
+                name: playlist.name,
+                fileIndices: remapped,
+                artworkData: playlist.artworkData,
+                artworkFilename: playlist.artworkFilename
+            )
+        }
+        return SourceImportSelection(files: selectedFiles, playlists: selectedPlaylists)
     }
 
     private static func playlistFileIndex(

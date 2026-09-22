@@ -258,7 +258,7 @@ struct ArtworkLookupService: Sendable {
 
     private var userAgent: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1"
-        return "PodBridge/\(version) (org.podbridge.app)"
+        return "PodBridge/\(version) (https://github.com/dbalantaev/PodBridge-OpenSource)"
     }
 
     private func preferredImageURLs(_ image: CoverImage) -> [URL] {

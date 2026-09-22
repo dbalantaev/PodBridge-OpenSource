@@ -40,6 +40,11 @@ enum ALACarteServerAddress {
 
 final class ALACarteClient: @unchecked Sendable {
     private struct LoginResponse: Decodable { let ok: Bool }
+    private struct AuthStateResponse: Decodable {
+        let authDisabled: Bool
+        let passwordSet: Bool
+        let authed: Bool
+    }
     private struct VersionResponse: Decodable {
         let apiVersion: Int
         let audioExtensions: [String]
@@ -103,6 +108,12 @@ final class ALACarteClient: @unchecked Sendable {
     var hasSavedSession: Bool { sessionCookieHeader != nil }
     var webSessionCookieHeader: String? { sessionCookieHeader }
 
+    func authState() async throws -> (authDisabled: Bool, passwordSet: Bool, authed: Bool) {
+        let data = try await responseData(for: URLRequest(url: endpoint("api/auth/state")))
+        let state = try JSONDecoder().decode(AuthStateResponse.self, from: data)
+        return (state.authDisabled, state.passwordSet, state.authed)
+    }
+
     func forgetSavedSession() {
         sessionCookieHeader = nil
         ALACarteSessionKeychain.delete(server: baseURL)
@@ -118,10 +129,10 @@ final class ALACarteClient: @unchecked Sendable {
         let (data, response) = try await session.data(for: request)
         try validate(response: response, body: data)
         guard try JSONDecoder().decode(LoginResponse.self, from: data).ok else {
-            throw URLError(.userAuthenticationRequired)
+            throw ALACarteError.server("ALACarte rejected the sign-in request.")
         }
-        guard captureSessionCookie(from: response) else {
-            throw ALACarteError.server("ALACarte did not return a session cookie.")
+        guard captureSessionCookie(from: response) || captureSessionCookieFromStorage() else {
+            throw ALACarteError.server("Signed in, but ALACarte did not provide a session cookie.")
         }
     }
 
@@ -134,6 +145,14 @@ final class ALACarteClient: @unchecked Sendable {
         let extensions = Set(response.audioExtensions.map { $0.lowercased() })
         guard extensions.contains("m4a") else {
             throw ALACarteError.incompatibleServer
+        }
+    }
+
+    func validateCompatibilityIfAvailable() async throws {
+        do {
+            try await validateCompatibility()
+        } catch ALACarteError.endpointNotFound {
+            // Servers released before this endpoint expose the same login/library/export API.
         }
     }
 
@@ -253,7 +272,23 @@ final class ALACarteClient: @unchecked Sendable {
     private func applySessionCookie(to request: inout URLRequest) {
         if let sessionCookieHeader {
             request.setValue(sessionCookieHeader, forHTTPHeaderField: "Cookie")
+            if let separator = sessionCookieHeader.firstIndex(of: "=") {
+                let token = sessionCookieHeader[sessionCookieHeader.index(after: separator)...]
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            }
         }
+    }
+
+    private func captureSessionCookieFromStorage() -> Bool {
+        guard let storage = session.configuration.httpCookieStorage else { return false }
+        let cookies = storage.cookies(for: baseURL) ?? []
+        guard let cookie = cookies.first(where: {
+            $0.name == "alacarte_session" || $0.name == "__Host-alacarte_session"
+        }) else { return false }
+        let pair = "\(cookie.name)=\(cookie.value)"
+        sessionCookieHeader = pair
+        ALACarteSessionKeychain.save(pair, server: baseURL)
+        return true
     }
 
     @discardableResult
@@ -277,14 +312,31 @@ final class ALACarteClient: @unchecked Sendable {
             throw URLError(.badServerResponse)
         }
         guard (200..<300).contains(http.statusCode) else {
-            if let body,
-               let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
-               let message = json["error"] as? String {
-                throw ALACarteError.server(message)
+            let serverMessage: String? = body.flatMap { data in
+                (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? String
             }
-            throw URLError(
-                http.statusCode == 401 ? .userAuthenticationRequired : .badServerResponse
-            )
+            switch http.statusCode {
+            case 400:
+                throw ALACarteError.server(serverMessage ?? "ALACarte rejected the request.")
+            case 401:
+                throw ALACarteError.server(
+                    serverMessage == "invalid credentials"
+                        ? "Incorrect ALACarte username or password."
+                        : (serverMessage ?? "Your ALACarte session has expired. Sign in again.")
+                )
+            case 403:
+                throw ALACarteError.server(serverMessage ?? "ALACarte denied this request.")
+            case 404:
+                throw ALACarteError.endpointNotFound
+            case 409:
+                throw ALACarteError.server(serverMessage ?? "ALACarte authentication is not ready for this request.")
+            case 429:
+                let retry = http.value(forHTTPHeaderField: "Retry-After")
+                    .map { " Try again in \($0) seconds." } ?? ""
+                throw ALACarteError.server("Too many sign-in attempts.\(retry)")
+            default:
+                throw ALACarteError.server(serverMessage ?? "ALACarte returned HTTP \(http.statusCode).")
+            }
         }
     }
 
@@ -339,6 +391,8 @@ enum ALACarteError: LocalizedError {
     case incompatibleServer
     case noCompatibleAudio
     case unsupportedFileType(String)
+    case endpointNotFound
+    case incompatibleRunningServer(String)
     case server(String)
 
     var errorDescription: String? {
@@ -351,6 +405,10 @@ enum ALACarteError: LocalizedError {
             return "No iPod-compatible audio was returned. Set ALACarte Library output to ALAC instead of FLAC."
         case .unsupportedFileType(let type):
             return "The server returned an unsupported .\(type) file. Set ALACarte Library output to ALAC."
+        case .endpointNotFound:
+            return "The requested ALACarte API endpoint was not found."
+        case .incompatibleRunningServer(let address):
+            return "ALACarte is reachable at \(address), but the running server does not contain the PodBridge API. Restart the PodBridge-compatible ALACarte server, then try again."
         case .server(let message):
             return message
         }
@@ -358,9 +416,21 @@ enum ALACarteError: LocalizedError {
 }
 
 struct ALACarteBrowserView: View {
+    private enum ConnectionMode: String, CaseIterable, Identifiable {
+        case automatic = "Auto"
+        case local = "Local"
+        case internet = "Internet"
+
+        var id: String { rawValue }
+    }
+
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var model: MusicTransferViewModel
-    @AppStorage("alacarte.serverURL") private var serverAddress = ""
+    // serverURL is kept only to migrate settings from the previous single-address UI.
+    @AppStorage("alacarte.serverURL") private var legacyServerAddress = ""
+    @AppStorage("alacarte.localServerURL") private var localServerAddress = ""
+    @AppStorage("alacarte.internetServerURL") private var internetServerAddress = ""
+    @AppStorage("alacarte.connectionMode") private var connectionMode = ConnectionMode.automatic.rawValue
     @AppStorage("alacarte.username") private var username = ""
     @State private var password = ""
     @State private var client: ALACarteClient?
@@ -370,21 +440,61 @@ struct ALACarteBrowserView: View {
     @State private var errorMessage: String?
     @State private var selectedItemIDs: Set<String> = []
     @State private var showingWebInterface = false
+    @State private var refreshingLibrary = false
+    @State private var libraryTab = 0
+    @State private var showingWriteProgress = false
+    @State private var confirmingWrite = false
 
-    private var filteredItems: [ALACarteLibraryItem] {
-        guard !searchText.isEmpty else { return items }
-        return items.filter {
-            $0.title.localizedCaseInsensitiveContains(searchText)
-                || $0.subtitle.localizedCaseInsensitiveContains(searchText)
+    private var selectedMode: ConnectionMode {
+        ConnectionMode(rawValue: connectionMode) ?? .automatic
+    }
+
+    private var hasServerAddressForSelectedMode: Bool {
+        switch selectedMode {
+        case .automatic:
+            !localServerAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !internetServerAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .local:
+            !localServerAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .internet:
+            !internetServerAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
 
+    private var filteredItems: [ALACarteLibraryItem] {
+        let kinds: [ALACarteLibraryItem.Kind?] = [nil, .album, .song, .playlist]
+        let kind = kinds[libraryTab]
+        return items.filter { item in
+            (kind == nil || item.kind == kind) &&
+            (searchText.isEmpty ||
+            item.title.localizedCaseInsensitiveContains(searchText)
+                || item.subtitle.localizedCaseInsensitiveContains(searchText))
+        }
+    }
+
+    private var selectedItems: [ALACarteLibraryItem] {
+        items.filter { selectedItemIDs.contains($0.id) }
+    }
+
+    private var selectedTrackCount: Int { selectedItems.reduce(0) { $0 + $1.trackCount } }
+
     var body: some View {
-        NavigationStack {
+        NavigationView {
             List {
                 if client == nil {
                     Section {
-                        TextField("http://server.local:7373", text: $serverAddress)
+                        Picker("Connection", selection: $connectionMode) {
+                            ForEach(ConnectionMode.allCases) { mode in
+                                Text(mode.rawValue).tag(mode.rawValue)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        TextField("http://server.local:7373", text: $localServerAddress)
+                            .keyboardType(.URL)
+                            .textContentType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        TextField("https://music.example.com", text: $internetServerAddress)
                             .keyboardType(.URL)
                             .textContentType(.URL)
                             .textInputAutocapitalization(.never)
@@ -396,79 +506,48 @@ struct ALACarteBrowserView: View {
                         Button(connecting ? "Connecting…" : "Connect", systemImage: "network") {
                             connect()
                         }
-                        .disabled(connecting || serverAddress.isEmpty || username.isEmpty || password.isEmpty)
+                        .disabled(connecting || !hasServerAddressForSelectedMode || username.isEmpty || password.isEmpty)
                     } header: {
                         Text("Your ALACarte server")
                     } footer: {
-                        Text("Use a server on your home network or an HTTPS address reachable through your private VPN. The password is not saved; the signed-in session is stored in Keychain.")
+                        Text("Auto tries the local address first, then the internet address if the local server cannot be reached. The password is not saved; the signed-in session is stored in Keychain.")
                     }
                 } else {
                     Section {
-                        Label(client?.baseURL.host ?? "Connected", systemImage: "checkmark.circle")
-                            .foregroundStyle(.secondary)
-                    }
-                    Section {
-                        Button {
-                            showingWebInterface = true
-                        } label: {
-                            Label("Open full ALACarte interface", systemImage: "globe")
+                        HStack {
+                            Label("Connected", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                            Spacer()
+                            Text(client?.baseURL.host ?? "ALACarte")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
+                        Button { showingWebInterface = true } label: {
+                            Label("Open server", systemImage: "globe")
+                        }
+                        Button { refreshLibrary() } label: {
+                            Label(refreshingLibrary ? "Refreshing…" : "Refresh downloaded music", systemImage: "arrow.clockwise")
+                        }
+                        .disabled(refreshingLibrary || model.isCopying)
                     } footer: {
-                        Text("Search, queue downloads, and change settings on your own ALACarte server.")
+                        Text("When you close the server, PodBridge refreshes this list automatically.")
                     }
                     Section {
+                        Picker("Type", selection: $libraryTab) {
+                            Text("All").tag(0); Text("Albums").tag(1); Text("Songs").tag(2); Text("Playlists").tag(3)
+                        }
+                        .pickerStyle(.segmented)
+                        Text("\(items.count) available · \(selectedItemIDs.count) selected")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         ForEach(filteredItems) { item in
-                            Button {
-                                if selectedItemIDs.contains(item.id) {
-                                    selectedItemIDs.remove(item.id)
-                                } else {
-                                    selectedItemIDs.insert(item.id)
-                                }
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: icon(item.kind)).frame(width: 28)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(item.title).foregroundStyle(.primary)
-                                        Text(item.subtitle).font(.caption).foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    Image(systemName: selectedItemIDs.contains(item.id) ? "checkmark.circle.fill" : "circle")
-                                        .foregroundStyle(selectedItemIDs.contains(item.id) ? Color.accentColor : Color.secondary)
-                                }
-                            }
-                            .disabled(model.isCopying)
+                            Button { toggle(item) } label: { libraryRow(item) }
+                                .disabled(model.isCopying)
                         }
                     } header: {
-                        Text("Already downloaded")
+                        Text("Downloaded music")
                     } footer: {
-                        Text("PodBridge imports only existing ALAC/M4A files. Download management remains in your server's own interface.")
-                    }
-                    if !selectedItemIDs.isEmpty {
-                        Section {
-                            Button {
-                                guard let client else { return }
-                                let selected = items.filter { selectedItemIDs.contains($0.id) }
-                                model.importFromALACarte(client: client, items: selected)
-                            } label: {
-                                Label("Write \(selectedItemIDs.count) selected to iPod", systemImage: "arrow.down.to.line.compact")
-                            }
-                            .disabled(
-                                model.isCopying
-                                    || model.destinationFolder == nil
-                                    || model.destinationDeviceProfile == nil
-                                    || model.destinationNeedsFirewireID
-                            )
-                            Button("Clear selection", role: .destructive) {
-                                selectedItemIDs.removeAll()
-                            }
-                            .disabled(model.isCopying)
-                        } header: {
-                            Text("Import queue")
-                        } footer: {
-                            if model.destinationFolder == nil {
-                                Text("Choose the iPod destination in PodBridge before importing.")
-                            }
-                        }
+                        Text("Only music already downloaded on your server appears here.")
                     }
                 }
                 if let status = model.alacarteStatus {
@@ -479,6 +558,11 @@ struct ALACarteBrowserView: View {
                 }
             }
             .searchable(text: $searchText, prompt: "Album, playlist, or song")
+            .safeAreaInset(edge: .bottom) {
+                if !selectedItemIDs.isEmpty, client != nil {
+                    writeBar
+                }
+            }
             .navigationTitle("ALACarte")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -499,14 +583,39 @@ struct ALACarteBrowserView: View {
                 }
             }
         }
-        .task { await restoreSavedSession() }
+        .task {
+            migrateLegacyServerAddress()
+            await restoreSavedSession()
+        }
         .sheet(isPresented: $showingWebInterface) {
             if let client {
                 ALACarteWebInterfaceView(
                     serverURL: client.baseURL,
-                    sessionCookieHeader: client.webSessionCookieHeader
+                    sessionCookieHeader: client.webSessionCookieHeader,
+                    didClose: { refreshLibrary() }
                 )
             }
+        }
+        .fullScreenCover(isPresented: $showingWriteProgress) {
+            ALACarteWriteProgressView(model: model) {
+                showingWriteProgress = false
+                selectedItemIDs.removeAll()
+                refreshLibrary()
+            }
+        }
+        .confirmationDialog(
+            "Write music to iPod?",
+            isPresented: $confirmingWrite,
+            titleVisibility: .visible
+        ) {
+            Button("Write \(selectedTrackCount) tracks to iPod") {
+                guard let client else { return }
+                showingWriteProgress = true
+                model.importFromALACarte(client: client, items: selectedItems)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("\(selectedItemIDs.count) selected items · \(selectedTrackCount) tracks. PodBridge will back up the iPod library before writing.")
         }
     }
 
@@ -515,13 +624,9 @@ struct ALACarteBrowserView: View {
         errorMessage = nil
         Task {
             do {
-                let url = try ALACarteServerAddress.parse(serverAddress)
-                let newClient = ALACarteClient(baseURL: url)
-                try await newClient.login(username: username, password: password)
-                try await newClient.validateCompatibility()
-                items = try await newClient.library()
-                client = newClient
-                serverAddress = url.absoluteString
+                let newClient = try await connectToFirstReachableServer()
+                client = newClient.client
+                items = newClient.items
                 password = ""
             } catch {
                 errorMessage = error.localizedDescription
@@ -530,26 +635,167 @@ struct ALACarteBrowserView: View {
         }
     }
 
+    private func toggle(_ item: ALACarteLibraryItem) {
+        if selectedItemIDs.contains(item.id) { selectedItemIDs.remove(item.id) }
+        else { selectedItemIDs.insert(item.id) }
+    }
+
+    private func libraryRow(_ item: ALACarteLibraryItem) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon(item.kind))
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 40, height: 40)
+                .background(Color.accentColor.opacity(0.11), in: RoundedRectangle(cornerRadius: 10))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.title).foregroundStyle(.primary).lineLimit(1)
+                Text(item.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer()
+            Image(systemName: selectedItemIDs.contains(item.id) ? "checkmark.circle.fill" : "circle")
+                .font(.title3)
+                .foregroundStyle(selectedItemIDs.contains(item.id) ? Color.accentColor : Color.secondary)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var writeBar: some View {
+        VStack(spacing: 8) {
+            Button {
+                confirmingWrite = true
+            } label: {
+                VStack(spacing: 2) {
+                    Text("Write \(selectedItemIDs.count) selected to iPod")
+                        .font(.headline)
+                    Text("\(selectedTrackCount) tracks")
+                        .font(.caption)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(model.isCopying || model.destinationFolder == nil || model.destinationDeviceProfile == nil || model.destinationNeedsFirewireID)
+            if model.destinationFolder == nil || model.destinationDeviceProfile == nil {
+                Text("Connect an iPod and choose its model before writing.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial)
+    }
+
+    private func refreshLibrary() {
+        guard let client, !refreshingLibrary, !model.isCopying else { return }
+        refreshingLibrary = true
+        errorMessage = nil
+        Task {
+            defer { refreshingLibrary = false }
+            do {
+                let refreshed = try await client.library()
+                items = refreshed
+                selectedItemIDs.formIntersection(Set(refreshed.map(\.id)))
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
     @MainActor
     private func restoreSavedSession() async {
-        guard client == nil, !connecting, !serverAddress.isEmpty else { return }
+        guard client == nil, !connecting else { return }
+        connecting = true
+        defer { connecting = false }
         do {
-            let url = try ALACarteServerAddress.parse(serverAddress)
-            let savedClient = ALACarteClient(baseURL: url, requestTimeout: 10)
-            guard savedClient.hasSavedSession else { return }
-            connecting = true
-            try await savedClient.validateCompatibility()
-            items = try await savedClient.library()
-            client = savedClient
-        } catch ALACarteError.server(let message) where message == "unauthorized" {
-            if let url = try? ALACarteServerAddress.parse(serverAddress) {
-                ALACarteClient(baseURL: url).forgetSavedSession()
+            let urls = try serverURLsForSelectedMode()
+            for (index, url) in urls.enumerated() {
+                do {
+                    let savedClient = ALACarteClient(baseURL: url, requestTimeout: 10)
+                    guard savedClient.hasSavedSession else { continue }
+                    do {
+                        let state = try await savedClient.authState()
+                        guard state.authDisabled || state.authed else { continue }
+                    } catch ALACarteError.endpointNotFound {
+                        // Older servers validate the session when their library is requested.
+                    }
+                    try await savedClient.validateCompatibilityIfAvailable()
+                    let savedItems = try await savedClient.library()
+                    client = savedClient
+                    items = savedItems
+                    errorMessage = nil
+                    return
+                } catch {
+                    guard selectedMode == .automatic,
+                          index < urls.count - 1,
+                          shouldTryNextServer(after: error) else { throw error }
+                }
             }
-            errorMessage = "The saved ALACarte session expired. Sign in again."
+        } catch is CancellationError {
+            return
         } catch {
+            // A temporary network failure is not a logout; keep the saved cookie.
             errorMessage = error.localizedDescription
         }
-        connecting = false
+    }
+
+    private func migrateLegacyServerAddress() {
+        guard localServerAddress.isEmpty, !legacyServerAddress.isEmpty else { return }
+        localServerAddress = legacyServerAddress
+    }
+
+    private func serverURLsForSelectedMode() throws -> [URL] {
+        let rawAddresses: [String]
+        switch selectedMode {
+        case .automatic:
+            rawAddresses = [localServerAddress, internetServerAddress]
+        case .local:
+            rawAddresses = [localServerAddress]
+        case .internet:
+            rawAddresses = [internetServerAddress]
+        }
+        let parsed = try rawAddresses
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .map(ALACarteServerAddress.parse)
+        guard !parsed.isEmpty else { throw ALACarteError.invalidServerURL }
+        return parsed.reduce(into: []) { result, url in
+            if !result.contains(url) { result.append(url) }
+        }
+    }
+
+    private func connectToFirstReachableServer() async throws -> (client: ALACarteClient, items: [ALACarteLibraryItem]) {
+        let urls = try serverURLsForSelectedMode()
+        var lastError: Error?
+        for (index, url) in urls.enumerated() {
+            do {
+                let candidate = ALACarteClient(baseURL: url)
+                try await candidate.login(username: username, password: password)
+                try await candidate.validateCompatibilityIfAvailable()
+                let candidateItems = try await candidate.library()
+                return (candidate, candidateItems)
+            } catch {
+                lastError = error
+                guard selectedMode == .automatic,
+                      index < urls.count - 1,
+                      shouldTryNextServer(after: error) else { throw error }
+            }
+        }
+        throw lastError ?? ALACarteError.invalidServerURL
+    }
+
+    private func shouldTryNextServer(after error: Error) -> Bool {
+        if case ALACarteError.endpointNotFound = error {
+            return true
+        }
+        guard let urlError = error as? URLError else { return false }
+        switch urlError.code {
+        case .timedOut, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed,
+             .networkConnectionLost, .notConnectedToInternet, .internationalRoamingOff,
+             .callIsActive, .dataNotAllowed, .secureConnectionFailed:
+            return true
+        default:
+            return false
+        }
     }
 
     private func icon(_ kind: ALACarteLibraryItem.Kind) -> String {
@@ -565,9 +811,10 @@ private struct ALACarteWebInterfaceView: View {
     @Environment(\.dismiss) private var dismiss
     let serverURL: URL
     let sessionCookieHeader: String?
+    let didClose: () -> Void
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ALACarteWebPage(
                 serverURL: serverURL,
                 sessionCookieHeader: sessionCookieHeader
@@ -575,12 +822,91 @@ private struct ALACarteWebInterfaceView: View {
             .ignoresSafeArea(edges: .bottom)
             .navigationTitle("ALACarte")
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button("Close") {
+                        didClose()
+                        dismiss()
+                    }
                 }
             }
         }
+    }
+}
+
+private struct ALACarteWriteProgressView: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var model: MusicTransferViewModel
+    let finished: () -> Void
+    @State private var completion: TransferCompletion?
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 22) {
+                Spacer()
+                if let completion {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 76))
+                        .foregroundStyle(.green)
+                    Text("Music Added").font(.largeTitle.bold())
+                    Text("\(completion.addedTracks) songs added to \(completion.destinationName).")
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    if !completion.playlists.isEmpty {
+                        Text(completion.playlists.map(\.name).joined(separator: " · "))
+                            .font(.subheadline)
+                            .multilineTextAlignment(.center)
+                    }
+                    Button("Done") {
+                        finished()
+                        dismiss()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                } else {
+                    ProgressView(value: progress)
+                        .tint(.accentColor)
+                    Text("Adding Music").font(.title2.bold())
+                    Text(status)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Text("\(model.copiedCount) tracks written to iPod")
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    Label("Keep PodBridge open and do not disconnect the iPod.", systemImage: "info.circle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Cancel", role: .destructive) { model.cancelCopy() }
+                        .buttonStyle(.bordered)
+                }
+                Spacer()
+            }
+            .padding(28)
+            .navigationTitle("ALACarte")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .interactiveDismissDisabled(completion == nil && model.isCopying)
+        .onChange(of: model.isCopying) { copying in
+            guard !copying, let result = model.transferCompletion else { return }
+            completion = result
+        }
+    }
+
+    private var status: String {
+        model.alacarteStatus ?? "Preparing transfer…"
+    }
+
+    private var progress: Double? {
+        guard model.isCopying else { return nil }
+        let words = status.split(separator: " ")
+        guard let ofIndex = words.firstIndex(of: "of"),
+              ofIndex > words.startIndex,
+              ofIndex + 1 < words.endIndex,
+              let current = Double(words[ofIndex - 1]),
+              let total = Double(words[ofIndex + 1]), total > 0 else { return nil }
+        return min(1, current / total)
     }
 }
 

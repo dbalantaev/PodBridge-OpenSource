@@ -5,6 +5,32 @@ import XCTest
 @testable import PodBridge
 
 final class IPodSyncEngineTests: XCTestCase {
+    func testReplacingPlaylistMembersUsesTransactionalWriter() async throws {
+        let fixture = try VirtualIPodFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let tracks = [
+            artistTrack(id: 1, title: "One", artist: "Artist", album: "Album"),
+            artistTrack(id: 2, title: "Two", artist: "Artist", album: "Album"),
+            artistTrack(id: 3, title: "Three", artist: "Artist", album: "Album")
+        ]
+        let library = ClassicLibrary(
+            name: "Test iPod",
+            tracks: tracks,
+            playlists: [ClassicPlaylist(name: "Mix", trackIDs: [1, 2])]
+        )
+        _ = try fixture.install(library)
+
+        let result = try await IPodSyncEngine.replacePlaylistMembers(
+            index: 0,
+            trackIDs: [3, 1],
+            root: fixture.root
+        )
+
+        XCTAssertEqual(result.library.playlists, [ClassicPlaylist(name: "Mix", trackIDs: [3, 1])])
+        XCTAssertEqual(try ClassicDatabase.parse(fixture.readDatabase()), result.library)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.backupURL.path))
+    }
+
     func testImportPreservesSourceMetadataForPlaylistTracks() {
         let incoming = [
             artistTrack(id: 0, title: "One", artist: "Artist A", album: "Album A"),
