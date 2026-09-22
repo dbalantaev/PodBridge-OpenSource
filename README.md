@@ -8,7 +8,7 @@ For the code-level structure and ownership boundaries, see
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
 <p align="center">
-  <img src="https://img.shields.io/badge/iOS-15%2B-007AFF?style=flat-square" alt="iOS 15+">
+  <img src="https://img.shields.io/badge/iOS-17%2B-007AFF?style=flat-square" alt="iOS 17+">
   <img src="https://img.shields.io/badge/iPod-Classic%20%7C%20Video%20%7C%20nano-8E8E93?style=flat-square" alt="iPod Classic, Video, and nano">
   <img src="https://img.shields.io/badge/license-MPL--2.0-4D4D4D?style=flat-square" alt="Mozilla Public License 2.0">
   <img src="https://img.shields.io/badge/status-experimental-F59E0B?style=flat-square" alt="Experimental">
@@ -25,7 +25,9 @@ For the code-level structure and ownership boundaries, see
 </p>
 
 <p align="center">
-  <img src="Documentation/Screenshots/main-screen.png" width="280" alt="PodBridge on iPhone">
+  <img src="Documentation/Screenshots/AppStore/01-connect-ipod-1284x2778.png" width="230" alt="PodBridge connection screen">
+  <img src="Documentation/Screenshots/AppStore/02-add-music-library-1284x2778.png" width="230" alt="PodBridge import and library screen">
+  <img src="Documentation/Screenshots/AppStore/03-library-tools-1284x2778.png" width="230" alt="PodBridge library tools screen">
 </p>
 
 PodBridge lets you add music to a stock-firmware click-wheel iPod without going
@@ -44,12 +46,16 @@ single track before transferring a large folder.
 - Supports AAC, AIFF, M4A, M4B, MP3, and WAV files.
 - Reads title, artist, album, duration, bitrate, and embedded artwork.
 - Imports `.m3u` and `.m3u8` playlists while keeping their track order.
+- Lets you review detected tracks and playlists before changing the iPod.
 - Adds music to the native iPod menus and Cover Flow.
 - Creates a database backup before each change and verifies the result before
   replacing the active library.
-- Includes tools for browsing the iPod library and editing metadata or artwork.
-- Shows the selected iPod model, song count, total capacity, used space, free
-  space, and a storage bar.
+- Shows clear transfer progress and a completion summary while keeping the
+  existing library, playlists, and artwork intact.
+- Includes Library Tools for browsing the iPod library, finding duplicates,
+  completing metadata, and fixing missing artwork.
+- Shows model-specific iPod artwork plus the selected model, song count, total
+  capacity, used space, free space, and a storage bar.
 - Can look up missing artwork through MusicBrainz and the Cover Art Archive.
 - The optional `PodBridgeALACarte` target can browse and import from your own
   ALACarte server. No developer-operated server is configured or used.
@@ -119,11 +125,11 @@ iPods; it is not caused by FAT32.
 ### What you need
 
 - A Mac running macOS 14 or later, with Xcode 26 or later to install the app.
-- An iPhone running iOS 15 or later.
+- An iPhone running iOS 17 or later.
 - A supported iPod running Apple’s original firmware.
 - A cable/adapter that lets the iPod appear in the iPhone Files picker, or a
   Mac with the iPod enabled for disk use. Files support depends on the adapter,
-  iPhone model, and iOS version; PodBridge itself supports iOS 15 and later.
+  iPhone model, and iOS version; PodBridge itself supports iOS 17 and later.
 
 ### Install PodBridge on your iPhone
 
