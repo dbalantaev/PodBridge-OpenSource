@@ -2,6 +2,10 @@
 // Copyright (c) 2026 Dmitry Balantaev
 
 import Foundation
+#if targetEnvironment(macCatalyst)
+import Darwin
+import IOKit
+#endif
 
 /// A parsed music track record from an iPod `iTunesDB`.
 ///
@@ -23,6 +27,14 @@ struct ClassicTrack: Identifiable, Sendable, Equatable {
     var bitrate: UInt32
     var sampleRate: UInt32
     var dateAdded: UInt32
+    /// Rating stored by iPod firmware on a 0...100 scale (20 points per star).
+    var rating: UInt8 = 0
+    var playCount: UInt32 = 0
+    var skipCount: UInt32 = 0
+    /// Seconds since 1904-01-01, as stored in iTunesDB.
+    var lastPlayed: UInt32 = 0
+    /// Seconds since 1904-01-01, as stored in iTunesDB.
+    var lastSkipped: UInt32 = 0
     var albumID: UInt32 = 0
     var artistID: UInt32 = 0
     var artworkImageID: UInt32 = 0
@@ -59,6 +71,96 @@ struct ClassicLibrary: Sendable, Equatable {
 /// database bytes and a device signing key; transactional writes belong to
 /// `IPodSyncEngine`.
 enum ClassicDatabase {
+    /// Applies the device-side deltas stored in `iPod_Control/iTunes/Play Counts`
+    /// to the corresponding track records. Play Counts entries are positional,
+    /// so existing track order must not be changed before this is called.
+    static func applyingPlayCounts(
+        _ playCounts: Data,
+        to existing: Data,
+        firewireID: Data
+    ) throws -> Data {
+        guard playCounts.count >= 0x60,
+              playCounts.ascii(at: 0, length: 4) == "mhdp" else {
+            throw PodBridgeError.invalidDatabase
+        }
+        let headerLength = Int(try playCounts.littleUInt32(at: 4))
+        let entryLength = Int(try playCounts.littleUInt32(at: 8))
+        let entryCount = Int(try playCounts.littleUInt32(at: 12))
+        guard headerLength >= 0x60,
+              entryLength >= 0x0c,
+              headerLength <= playCounts.count,
+              entryCount <= (playCounts.count - headerLength) / entryLength else {
+            throw PodBridgeError.invalidDatabase
+        }
+
+        let rootHeader = Int(try existing.littleUInt32(at: 4))
+        let sections = try topLevelSections(existing, start: rootHeader)
+        guard let trackSection = sections.first(where: { $0.type == 1 })?.range else {
+            throw PodBridgeError.invalidDatabase
+        }
+        var output = existing
+        let sectionHeader = Int(try output.littleUInt32(at: trackSection.lowerBound + 4))
+        let listOffset = trackSection.lowerBound + sectionHeader
+        guard output.ascii(at: listOffset, length: 4) == "mhlt" else {
+            throw PodBridgeError.invalidDatabase
+        }
+        var trackOffset = listOffset + Int(try output.littleUInt32(at: listOffset + 4))
+        var index = 0
+        while index < entryCount,
+              trackOffset + 16 <= trackSection.upperBound,
+              output.ascii(at: trackOffset, length: 4) == "mhit" {
+            let trackHeader = Int(try output.littleUInt32(at: trackOffset + 4))
+            let trackLength = Int(try output.littleUInt32(at: trackOffset + 8))
+            guard trackHeader >= 0x9c,
+                  trackLength >= trackHeader,
+                  trackOffset + trackLength <= trackSection.upperBound else {
+                throw PodBridgeError.invalidDatabase
+            }
+            let entryOffset = headerLength + index * entryLength
+            let recentPlayCount = try playCounts.littleUInt32(at: entryOffset)
+            let lastPlayed = try playCounts.littleUInt32(at: entryOffset + 4)
+            let bookmark = try playCounts.littleUInt32(at: entryOffset + 8)
+
+            if recentPlayCount != 0 {
+                let stored = try output.littleUInt32(at: trackOffset + 0x50)
+                try output.setLittleUInt32(stored &+ recentPlayCount, at: trackOffset + 0x50)
+                if trackHeader > 0xb2 { output[trackOffset + 0xb2] = 1 }
+            }
+            if lastPlayed != 0 {
+                try output.setLittleUInt32(lastPlayed, at: trackOffset + 0x58)
+            }
+            if bookmark != 0 {
+                try output.setLittleUInt32(bookmark, at: trackOffset + 0x6c)
+            }
+            if entryLength >= 0x10 {
+                let deviceRating = try playCounts.littleUInt32(at: entryOffset + 12)
+                if deviceRating <= 100 {
+                    let oldRating = output[trackOffset + 0x1f]
+                    let newRating = UInt8(deviceRating)
+                    if oldRating != newRating {
+                        output[trackOffset + 0x79] = oldRating
+                        output[trackOffset + 0x1f] = newRating
+                    }
+                }
+            }
+            if entryLength >= 0x1c, trackHeader >= 0xf4 {
+                let recentSkipCount = try playCounts.littleUInt32(at: entryOffset + 20)
+                let lastSkipped = try playCounts.littleUInt32(at: entryOffset + 24)
+                if recentSkipCount != 0 {
+                    let stored = try output.littleUInt32(at: trackOffset + 0x9c)
+                    try output.setLittleUInt32(stored &+ recentSkipCount, at: trackOffset + 0x9c)
+                }
+                if lastSkipped != 0 {
+                    try output.setLittleUInt32(lastSkipped, at: trackOffset + 0xa0)
+                }
+            }
+            trackOffset += trackLength
+            index += 1
+        }
+        guard index == entryCount else { throw PodBridgeError.invalidDatabase }
+        return try Hash58.sign(output, firewireID: firewireID)
+    }
+
     // MARK: - Diagnostics and edit results
 
     /// Integrity facts collected while inspecting an iTunesDB candidate.
@@ -422,6 +524,98 @@ enum ClassicDatabase {
             library = result.library
         }
         return BatchRemovalResult(data: data, library: library, removedTracks: removedTracks)
+    }
+
+    /// Clears a large library in one pass while retaining the device's root
+    /// header, master playlist headers, and unknown database sections.
+    static func clearingLibrary(existing: Data, firewireID: Data) throws -> BatchRemovalResult {
+        let originalLibrary = try parse(existing)
+        let rootHeader = Int(try existing.littleUInt32(at: 4))
+        let sections = try topLevelSections(existing, start: rootHeader)
+        var output = Data(existing.prefix(rootHeader))
+        for section in sections {
+            switch section.type {
+            case 1, 4, 8:
+                var value = Data(existing[section.range])
+                let listOffset = Int(try value.littleUInt32(at: 4))
+                let listHeader = Int(try value.littleUInt32(at: listOffset + 4))
+                let end = listOffset + listHeader
+                guard end <= value.count else { throw PodBridgeError.invalidDatabase }
+                value = Data(value.prefix(end))
+                try value.setLittleUInt32(UInt32(value.count), at: 8)
+                try value.setLittleUInt32(0, at: listOffset + 8)
+                output.append(value)
+            case 2, 3:
+                output.append(try playlistSectionClearing(existing, range: section.range))
+            default:
+                output.append(existing[section.range])
+            }
+        }
+        try output.setLittleUInt32(UInt32(output.count), at: 8)
+        let signed = try Hash58.sign(output, firewireID: firewireID)
+        let verified = try parse(signed)
+        let diagnostics = try inspect(signed, firewireID: firewireID)
+        guard verified.tracks.isEmpty,
+              verified.playlists.isEmpty,
+              diagnostics.masterPlaylistFound,
+              diagnostics.masterPlaylistMembers == 0,
+              diagnostics.playlistSectionsConsistent,
+              diagnostics.sortIndexesValid,
+              diagnostics.jumpTablesValid,
+              diagnostics.hash58Valid else { throw PodBridgeError.databaseVerificationFailed }
+        return BatchRemovalResult(data: signed, library: verified, removedTracks: originalLibrary.tracks)
+    }
+
+    private static func playlistSectionClearing(_ data: Data, range: Range<Int>) throws -> Data {
+        let source = Data(data[range])
+        let listOffset = Int(try source.littleUInt32(at: 4))
+        let listHeader = Int(try source.littleUInt32(at: listOffset + 4))
+        var cursor = listOffset + listHeader
+        guard source.ascii(at: listOffset, length: 4) == "mhlp",
+              cursor <= source.count else { throw PodBridgeError.invalidDatabase }
+        var output = Data(source.prefix(cursor))
+        var masterFound = false
+        while cursor + 24 <= source.count, source.ascii(at: cursor, length: 4) == "mhyp" {
+            let length = Int(try source.littleUInt32(at: cursor + 8))
+            guard length > 0, cursor + length <= source.count else { throw PodBridgeError.invalidDatabase }
+            if try source.littleUInt32(at: cursor + 20) != 0 {
+                guard !masterFound else { throw PodBridgeError.invalidDatabase }
+                masterFound = true
+                output.append(try masterPlaylistClearing(Data(source[cursor..<(cursor + length)])))
+            }
+            cursor += length
+        }
+        guard masterFound, cursor == source.count else { throw PodBridgeError.invalidDatabase }
+        try output.setLittleUInt32(UInt32(output.count), at: 8)
+        try output.setLittleUInt32(1, at: listOffset + 8)
+        return output
+    }
+
+    private static func masterPlaylistClearing(_ source: Data) throws -> Data {
+        let header = Int(try source.littleUInt32(at: 4))
+        guard header <= source.count else { throw PodBridgeError.invalidDatabase }
+        var output = Data(source.prefix(header))
+        var cursor = header
+        while cursor + 16 <= source.count {
+            let length = Int(try source.littleUInt32(at: cursor + 8))
+            guard length > 0, cursor + length <= source.count else { throw PodBridgeError.invalidDatabase }
+            let child = Data(source[cursor..<(cursor + length)])
+            if child.ascii(at: 0, length: 4) == "mhod", length >= 72,
+               try child.littleUInt32(at: 12) == 52 {
+                output.append(try updatedSortIndex(child, order: []))
+            } else if child.ascii(at: 0, length: 4) == "mhod", length >= 40,
+                      try child.littleUInt32(at: 12) == 53 {
+                let type = try child.littleUInt32(at: 24)
+                output.append(jumpTableObject(type: type, order: [], tracks: [], key: { _ in "" }))
+            } else if child.ascii(at: 0, length: 4) != "mhip" {
+                output.append(child)
+            }
+            cursor += length
+        }
+        guard cursor == source.count else { throw PodBridgeError.invalidDatabase }
+        try output.setLittleUInt32(UInt32(output.count), at: 8)
+        try output.setLittleUInt32(0, at: 16)
+        return output
     }
 
     /// Updates one track's display metadata and rebuilds dependent indexes.
@@ -1305,24 +1499,46 @@ enum ClassicDatabase {
 
     /// Reads and validates the 16-hex-digit FireWire ID from iPod metadata.
     static func firewireID(at root: URL) throws -> Data {
-        let sysInfo = root.appendingPathComponent("iPod_Control/Device/SysInfo")
-        if let text = try? String(contentsOf: sysInfo, encoding: .utf8),
-           let value = text.split(whereSeparator: \.isNewline).first(where: {
-               $0.lowercased().hasPrefix("firewireguid:")
-           }), let colon = value.firstIndex(of: ":"),
-           let id = decodeFirewireID(String(value[value.index(after: colon)...])) {
+#if targetEnvironment(macCatalyst)
+        // The mounted disk's hardware identity is authoritative on macOS. Prefer it
+        // over copied/stale SysInfo data and over PodBridge's per-volume cache.
+        if let id = MacIPodIdentity.firewireID(for: root) {
             cacheFirewireID(id, root: root)
+            AppLogger.database("Read FireWire GUID automatically from the iPod USB device", level: .info)
             return id
         }
+#endif
+        let device = root.appendingPathComponent("iPod_Control/Device", isDirectory: true)
+        var candidates = ["SysInfo", "SysInfoExtended", "ExtendedSysInfoXml.xml"].map {
+            device.appendingPathComponent($0)
+        }
+        if let discovered = try? FileManager.default.contentsOfDirectory(
+            at: device,
+            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+            options: [.skipsHiddenFiles]
+        ) {
+            let additional = discovered.filter { url in
+                guard !candidates.contains(url) else { return false }
+                let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+                guard values?.isRegularFile == true, (values?.fileSize ?? Int.max) <= 1_048_576 else { return false }
+                return ["", "xml", "plist", "txt"].contains(url.pathExtension.lowercased())
+            }
+            candidates.append(contentsOf: additional.prefix(64))
+        }
 
-        let extended = root.appendingPathComponent("iPod_Control/Device/SysInfoExtended")
-        if let plistData = try? Data(contentsOf: extended),
-           let plist = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any] {
-            for key in ["FireWireGUID", "FirewireGuid", "FirewireGUID"] {
-                if let value = plist[key] as? String, let id = decodeFirewireID(value) {
-                    cacheFirewireID(id, root: root)
-                    return id
-                }
+        for url in candidates {
+            guard let data = try? Data(contentsOf: url), data.count <= 1_048_576 else { continue }
+            if let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
+               let id = firewireID(inPropertyList: plist) {
+                cacheFirewireID(id, root: root)
+                AppLogger.database("Found FireWire GUID in \(url.lastPathComponent)", level: .info)
+                return id
+            }
+            if let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .utf16),
+               let id = firewireID(inText: text) {
+                cacheFirewireID(id, root: root)
+                AppLogger.database("Found FireWire GUID in \(url.lastPathComponent)", level: .info)
+                return id
             }
         }
         let cache = UserDefaults.standard.dictionary(forKey: "PodBridge.cachedFirewireIDs") as? [String: String]
@@ -1331,6 +1547,48 @@ enum ClassicDatabase {
             return id
         }
         throw PodBridgeError.missingFirewireID
+    }
+
+    private static func firewireID(inPropertyList value: Any) -> Data? {
+        if let dictionary = value as? [String: Any] {
+            for (key, child) in dictionary {
+                let normalized = key.lowercased().filter(\.isLetter)
+                if normalized == "firewireguid" {
+                    if let string = child as? String, let id = decodeFirewireID(string) { return id }
+                    if let data = child as? Data, data.count == 8 { return data }
+                    if let number = child as? NSNumber,
+                       let id = decodeFirewireID(String(format: "%016llx", number.uint64Value)) { return id }
+                }
+                if let id = firewireID(inPropertyList: child) { return id }
+            }
+        } else if let array = value as? [Any] {
+            for child in array {
+                if let id = firewireID(inPropertyList: child) { return id }
+            }
+        }
+        return nil
+    }
+
+    private static func firewireID(inText text: String) -> Data? {
+        for line in text.split(whereSeparator: \.isNewline) {
+            let lower = line.lowercased()
+            guard lower.contains("firewireguid") || lower.contains("firewire guid") else { continue }
+            for token in line.split(whereSeparator: { !$0.isHexDigit && $0 != "x" && $0 != "X" }) {
+                if let id = decodeFirewireID(String(token)) { return id }
+            }
+        }
+
+        // Some exported device-info XML omits the key but retains Apple's iPod GUID prefix.
+        let compact = text.filter(\.isHexDigit)
+        let prefix = "000A2700"
+        var searchStart = compact.startIndex
+        while let range = compact.range(of: prefix, options: .caseInsensitive, range: searchStart..<compact.endIndex) {
+            let end = compact.index(range.lowerBound, offsetBy: 16, limitedBy: compact.endIndex) ?? compact.endIndex
+            if compact.distance(from: range.lowerBound, to: end) == 16,
+               let id = decodeFirewireID(String(compact[range.lowerBound..<end])) { return id }
+            searchStart = range.upperBound
+        }
+        return nil
     }
 
     private static func cacheFirewireID(_ id: Data, root: URL) {
@@ -1359,6 +1617,91 @@ enum ClassicDatabase {
             // provider does not allow updating SysInfo itself.
             AppLogger.database("Could not persist FireWire GUID in SysInfo error=\(error.localizedDescription)", level: .error)
         }
+    }
+
+    /// Removes the signing ID from readable iPod metadata and the local cache.
+    /// Every changed file is restored if the final absence check fails.
+    static func removeFirewireIDForTesting(at root: URL, expectedID: Data) throws {
+        guard expectedID.count == 8 else { throw PodBridgeError.invalidFirewireID }
+        let manager = FileManager.default
+        let device = root.appendingPathComponent("iPod_Control/Device", isDirectory: true)
+        let files = (try? manager.contentsOfDirectory(
+            at: device,
+            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        let candidates = files.filter { url in
+            let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+            let isKnownFile = ["SysInfo", "SysInfoExtended", "ExtendedSysInfoXml.xml"].contains(url.lastPathComponent)
+            let isReadableMetadata = ["", "xml", "plist", "txt"].contains(url.pathExtension.lowercased())
+            return values?.isRegularFile == true
+                && (values?.fileSize ?? Int.max) <= 1_048_576
+                && (isKnownFile || isReadableMetadata)
+        }
+        let expectedHex = expectedID.map { String(format: "%02x", $0) }.joined()
+        var originals: [URL: Data] = [:]
+        let cacheKey = "PodBridge.cachedFirewireIDs"
+        let originalCache = UserDefaults.standard.dictionary(forKey: cacheKey)
+
+        do {
+            for url in candidates {
+                let original = try Data(contentsOf: url)
+                var updated: Data?
+                var format = PropertyListSerialization.PropertyListFormat.xml
+                if let plist = try? PropertyListSerialization.propertyList(from: original, options: [], format: &format),
+                   firewireID(inPropertyList: plist) == expectedID {
+                    let scrubbed = removingFirewireID(from: plist, expectedHex: expectedHex)
+                    let encoded = try PropertyListSerialization.data(fromPropertyList: scrubbed, format: format, options: 0)
+                    if encoded != original { updated = encoded }
+                } else if let text = String(data: original, encoding: .utf8),
+                          firewireID(inText: text) == expectedID {
+                    let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+                    let kept = lines.filter { line in
+                        let value = String(line)
+                        let lower = value.lowercased()
+                        let compact = lower.filter(\.isHexDigit)
+                        return !lower.contains("firewireguid") && !lower.contains("firewire guid") && !compact.contains(expectedHex)
+                    }
+                    let scrubbed = kept.joined(separator: "\n")
+                    if scrubbed != text { updated = Data(scrubbed.utf8) }
+                }
+                guard let updated else { continue }
+                originals[url] = original
+                try updated.write(to: url, options: .atomic)
+                guard try Data(contentsOf: url) == updated else { throw PodBridgeError.databaseVerificationFailed }
+            }
+
+            var cache = originalCache as? [String: String] ?? [:]
+            cache.removeValue(forKey: root.lastPathComponent)
+            UserDefaults.standard.set(cache, forKey: cacheKey)
+            if (try? firewireID(at: root)) != nil { throw PodBridgeError.databaseVerificationFailed }
+            AppLogger.database("Removed FireWire GUID from iPod metadata for recovery test", level: .info)
+        } catch {
+            for (url, data) in originals { try? data.write(to: url, options: .atomic) }
+            if let originalCache { UserDefaults.standard.set(originalCache, forKey: cacheKey) }
+            else { UserDefaults.standard.removeObject(forKey: cacheKey) }
+            throw error
+        }
+    }
+
+    private static func removingFirewireID(from value: Any, expectedHex: String) -> Any {
+        if let dictionary = value as? [String: Any] {
+            var result: [String: Any] = [:]
+            for (key, child) in dictionary {
+                let normalized = key.lowercased().filter(\.isLetter)
+                guard normalized != "firewireguid" else { continue }
+                result[key] = removingFirewireID(from: child, expectedHex: expectedHex)
+            }
+            return result
+        }
+        if let array = value as? [Any] {
+            return array.map { removingFirewireID(from: $0, expectedHex: expectedHex) }
+        }
+        if let string = value as? String,
+           string.lowercased().filter(\.isHexDigit).contains(expectedHex) {
+            return ""
+        }
+        return value
     }
 
     private static func decodeFirewireID(_ value: String) -> Data? {
@@ -1431,6 +1774,11 @@ enum ClassicDatabase {
                 bitrate: try data.littleUInt32(at: cursor + 0x38),
                 sampleRate: try data.littleUInt32(at: cursor + 0x3c) >> 16,
                 dateAdded: try data.littleUInt32(at: cursor + 0x68),
+                rating: data[cursor + 0x1f],
+                playCount: try data.littleUInt32(at: cursor + 0x50),
+                skipCount: header >= 0xa4 ? try data.littleUInt32(at: cursor + 0x9c) : 0,
+                lastPlayed: try data.littleUInt32(at: cursor + 0x58),
+                lastSkipped: header >= 0xa4 ? try data.littleUInt32(at: cursor + 0xa0) : 0,
                 albumID: header >= 0x124 ? try data.littleUInt32(at: cursor + 0x120) : 0,
                 artistID: header >= 0x1e4 ? try data.littleUInt32(at: cursor + 0x1e0) : 0,
                 artworkImageID: header >= 0x164 ? try data.littleUInt32(at: cursor + 0x160) : 0,
@@ -2573,6 +2921,7 @@ enum ClassicDatabase {
         let format = trackFormat(track)
         writer.patchBytes(Data(format.marker.utf8), at: 0x18)
         writer.patchBytes(Data([format.type1, format.type2, track.compilation ? 1 : 0, 0]), at: 0x1c)
+        writer.patchBytes(Data([track.rating]), at: 0x1f)
         writer.patchU32(track.dateAdded, at: 0x20)
         writer.patchU32(track.byteCount, at: 0x24)
         writer.patchU32(track.durationMS, at: 0x28)
@@ -2581,12 +2930,16 @@ enum ClassicDatabase {
         writer.patchU32(track.year, at: 0x34)
         writer.patchU32(track.bitrate, at: 0x38)
         writer.patchU32(track.sampleRate << 16, at: 0x3c)
+        writer.patchU32(track.playCount, at: 0x50)
+        writer.patchU32(track.lastPlayed, at: 0x58)
         writer.patchU32(track.dateAdded, at: 0x68)
         var dbid = BinaryWriter(); dbid.u64(track.databaseID)
         writer.patchBytes(dbid.data, at: 0x70)
         writer.patchU16(format.compressed ? 0xffff : 0, at: 0x7e)
         writer.patchU32(Float(track.sampleRate).bitPattern, at: 0x88)
         writer.patchU16(format.unknown144, at: 0x90)
+        writer.patchU32(track.skipCount, at: 0x9c)
+        writer.patchU32(track.lastSkipped, at: 0xa0)
         writer.patchBytes(Data([track.artworkImageID == 0 ? 2 : 1, 0, 0, 0]), at: 0xa4)
         writer.patchBytes(dbid.data, at: 0xa8)
         writer.patchBytes(Data([0, 0, 2, 0]), at: 0xb0)
@@ -2778,3 +3131,79 @@ enum ClassicDatabase {
         return writer.data
     }
 }
+
+#if targetEnvironment(macCatalyst)
+/// Resolves the USB serial belonging to the exact mounted iPod volume selected by the user.
+/// Classic/nano/mini devices expose their 16-hex FireWire GUID as this USB serial.
+private enum MacIPodIdentity {
+    static func firewireID(for root: URL) -> Data? {
+        guard let bsdName = mountedBSDName(for: root),
+              let service = bsdService(named: bsdName) else {
+            AppLogger.database("Could not associate the selected iPod volume with an IORegistry disk", level: .error)
+            return nil
+        }
+        defer { IOObjectRelease(service) }
+
+        for key in ["USB Serial Number", "Serial Number", "iSerialNumber"] {
+            guard let property = IORegistryEntrySearchCFProperty(
+                service,
+                kIOServicePlane,
+                key as CFString,
+                kCFAllocatorDefault,
+                IOOptionBits(kIORegistryIterateRecursively | kIORegistryIterateParents)
+            ) else { continue }
+            if let id = decode(property) { return id }
+        }
+        AppLogger.database("The selected iPod disk has no readable 16-digit USB serial in IORegistry", level: .error)
+        return nil
+    }
+
+    private static func mountedBSDName(for root: URL) -> String? {
+        var information = statfs()
+        let result = root.path.withCString { statfs($0, &information) }
+        guard result == 0 else { return nil }
+        let source = withUnsafePointer(to: &information.f_mntfromname) { pointer in
+            pointer.withMemoryRebound(to: CChar.self, capacity: Int(MNAMELEN)) {
+                String(cString: $0)
+            }
+        }
+        guard source.hasPrefix("/dev/") else { return nil }
+        return String(source.dropFirst(5))
+    }
+
+    private static func bsdService(named name: String) -> io_registry_entry_t? {
+        let service = name.withCString { pointer in
+            IOServiceGetMatchingService(
+                kIOMainPortDefault,
+                IOBSDNameMatching(kIOMainPortDefault, 0, pointer)
+            )
+        }
+        return service == IO_OBJECT_NULL ? nil : service
+    }
+
+    private static func decode(_ property: CFTypeRef) -> Data? {
+        let value: String
+        if CFGetTypeID(property) == CFStringGetTypeID() {
+            value = property as! String
+        } else if CFGetTypeID(property) == CFDataGetTypeID() {
+            guard let data = property as? Data,
+                  let string = String(data: data, encoding: .utf8) else { return nil }
+            value = string
+        } else {
+            return nil
+        }
+        let hex = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "0x", with: "", options: .caseInsensitive)
+        guard hex.count == 16 else { return nil }
+        var output = Data(capacity: 8)
+        var index = hex.startIndex
+        for _ in 0..<8 {
+            let next = hex.index(index, offsetBy: 2)
+            guard let byte = UInt8(hex[index..<next], radix: 16) else { return nil }
+            output.append(byte)
+            index = next
+        }
+        return output
+    }
+}
+#endif

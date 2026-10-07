@@ -5,6 +5,35 @@ import XCTest
 @testable import PodBridge
 
 final class ClassicDatabaseTests: XCTestCase {
+    func testPlaybackStatisticsRoundTripThroughDatabase() throws {
+        var item = track(id: 7, title: "Song", artist: "Artist", album: "Album")
+        item.rating = 80
+        item.playCount = 42
+        item.skipCount = 3
+        item.lastPlayed = 3_900_000_000
+        item.lastSkipped = 3_900_000_100
+        let library = ClassicLibrary(name: "Stats", tracks: [item], playlists: [])
+
+        let database = try ClassicDatabase.build(library: library, firewireID: Data(), databaseID: 123)
+        let parsed = try XCTUnwrap(ClassicDatabase.parse(database).tracks.first)
+
+        XCTAssertEqual(parsed.rating, 80)
+        XCTAssertEqual(parsed.playCount, 42)
+        XCTAssertEqual(parsed.skipCount, 3)
+        XCTAssertEqual(parsed.lastPlayed, 3_900_000_000)
+        XCTAssertEqual(parsed.lastSkipped, 3_900_000_100)
+    }
+
+    func testMiniProfileUsesUnsignedDatabase() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        IPodDeviceProfile.save(.mini1And2, for: root)
+
+        XCTAssertEqual(try IPodDeviceProfile.databaseKey(at: root), Data())
+        XCTAssertEqual(IPodDeviceProfile.mini1And2.checksum, .none)
+    }
+
     func testUnsignedDeviceDatabaseIsPreservedWithoutHash58() throws {
         let database = Data((0..<256).map(UInt8.init))
         XCTAssertEqual(try Hash58.sign(database, firewireID: Data()), database)
@@ -29,6 +58,98 @@ final class ClassicDatabaseTests: XCTestCase {
         XCTAssertTrue(sysInfo.contains("ModelNumStr: MZ555"))
         XCTAssertTrue(sysInfo.contains("FirewireGuid: 0x000a27001a2b3c4d"))
         XCTAssertEqual(try ClassicDatabase.firewireID(at: root), firewireID)
+    }
+
+    func testFirewireIDIsFoundInNestedExtendedSysInfoXML() throws {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? manager.removeItem(at: root) }
+        let device = root.appendingPathComponent("iPod_Control/Device", isDirectory: true)
+        try manager.createDirectory(at: device, withIntermediateDirectories: true)
+        let plist: [String: Any] = ["USB": ["FireWire GUID": "0x000A27001A2B3C4D"]]
+        let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+        try data.write(to: device.appendingPathComponent("ExtendedSysInfoXml.xml"))
+
+        XCTAssertEqual(try ClassicDatabase.firewireID(at: root), firewireID)
+    }
+
+    func testFirewireIDIsFoundInAdditionalDeviceTextFile() throws {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? manager.removeItem(at: root) }
+        let device = root.appendingPathComponent("iPod_Control/Device", isDirectory: true)
+        try manager.createDirectory(at: device, withIntermediateDirectories: true)
+        try "FireWireGUID = 000A27001A2B3C4D\n".write(
+            to: device.appendingPathComponent("DeviceInfo.txt"), atomically: true, encoding: .utf8
+        )
+
+        XCTAssertEqual(try ClassicDatabase.firewireID(at: root), firewireID)
+    }
+
+    func testRemovingFirewireIDScrubsMetadataAndLocalCache() throws {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? manager.removeItem(at: root) }
+        let device = root.appendingPathComponent("iPod_Control/Device", isDirectory: true)
+        try manager.createDirectory(at: device, withIntermediateDirectories: true)
+        try "ModelNumStr: MB147\nFirewireGuid: 0x000A27001A2B3C4D\n".write(
+            to: device.appendingPathComponent("SysInfo"), atomically: true, encoding: .utf8
+        )
+        let extended: [String: Any] = [
+            "USB": ["FireWire GUID": "0x000A27001A2B3C4D"],
+            "Product": "iPod"
+        ]
+        let extendedData = try PropertyListSerialization.data(
+            fromPropertyList: extended, format: .xml, options: 0
+        )
+        try extendedData.write(to: device.appendingPathComponent("ExtendedSysInfoXml.xml"))
+        XCTAssertEqual(try ClassicDatabase.firewireID(at: root), firewireID)
+
+        try ClassicDatabase.removeFirewireIDForTesting(at: root, expectedID: firewireID)
+
+        XCTAssertThrowsError(try ClassicDatabase.firewireID(at: root))
+        let sysInfo = try String(contentsOf: device.appendingPathComponent("SysInfo"), encoding: .utf8)
+        XCTAssertTrue(sysInfo.contains("ModelNumStr: MB147"))
+        XCTAssertFalse(sysInfo.lowercased().contains("firewireguid"))
+        let scrubbed = try PropertyListSerialization.propertyList(
+            from: Data(contentsOf: device.appendingPathComponent("ExtendedSysInfoXml.xml")), format: nil
+        ) as? [String: Any]
+        XCTAssertEqual(scrubbed?["Product"] as? String, "iPod")
+    }
+
+    func testDiskUsePreferencesUpdatesBothFilesAndCreatesBackup() throws {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? manager.removeItem(at: root) }
+        let iTunes = root.appendingPathComponent("iPod_Control/iTunes", isDirectory: true)
+        try manager.createDirectory(at: iTunes, withIntermediateDirectories: true)
+        let original = Data(repeating: 0, count: 64)
+        try original.write(to: iTunes.appendingPathComponent("iTunesPrefs"))
+        let plist = try PropertyListSerialization.data(
+            fromPropertyList: ["iPodPrefs": original], format: .binary, options: 0
+        )
+        try plist.write(to: iTunes.appendingPathComponent("iTunesPrefs.plist"))
+
+        XCTAssertEqual(IPodDiskUsePreferences.status(at: root), .disabled)
+        let backup = try IPodDiskUsePreferences.enable(at: root)
+        XCTAssertEqual(IPodDiskUsePreferences.status(at: root), .enabled)
+        XCTAssertEqual(try Data(contentsOf: backup.appendingPathComponent("iTunesPrefs")), original)
+        XCTAssertEqual(try Data(contentsOf: iTunes.appendingPathComponent("iTunesPrefs"))[0x1f], 1)
+    }
+
+    func testDiskUsePreferencesRejectsUnknownFormatWithoutWriting() throws {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? manager.removeItem(at: root) }
+        let iTunes = root.appendingPathComponent("iPod_Control/iTunes", isDirectory: true)
+        try manager.createDirectory(at: iTunes, withIntermediateDirectories: true)
+        let original = Data(repeating: 0, count: 8)
+        let prefs = iTunes.appendingPathComponent("iTunesPrefs")
+        try original.write(to: prefs)
+
+        XCTAssertEqual(IPodDiskUsePreferences.status(at: root), .unavailable)
+        XCTAssertThrowsError(try IPodDiskUsePreferences.enable(at: root))
+        XCTAssertEqual(try Data(contentsOf: prefs), original)
     }
 
     func testResigningRepairsHashWithoutChangingLibrary() throws {
@@ -57,6 +178,39 @@ final class ClassicDatabaseTests: XCTestCase {
         let signed = try Hash58.sign(database, firewireID: firewireID)
 
         XCTAssertEqual(signed[0x58..<0x6c].map { String(format: "%02x", $0) }.joined(), "d84bca1d95897b7877c0258e91399e18b835c675")
+    }
+
+    func testLocalSignatureRecoveryFindsAValidCandidate() throws {
+        let expectedID = Data([0x00, 0x0a, 0x27, 0x00, 0x00, 0x00, 0x00, 0x2a])
+        let database = try ClassicDatabase.build(
+            library: ClassicLibrary(name: "Recovery", tracks: [], playlists: []),
+            firewireID: expectedID,
+            databaseID: 42
+        )
+        let context = try Hash58.RecoveryContext(database: database)
+
+        let recovered = context.search(from: 0, count: 100)
+
+        XCTAssertNotNil(recovered)
+        XCTAssertTrue(try Hash58.verify(database, firewireID: recovered!))
+    }
+
+    func testMetalSignatureRecoveryFindsAValidCandidate() async throws {
+        let expectedID = Data([0x00, 0x0a, 0x27, 0x00, 0x00, 0x00, 0x00, 0x2a])
+        let database = try ClassicDatabase.build(
+            library: ClassicLibrary(name: "Metal Recovery", tracks: [], playlists: []),
+            firewireID: expectedID,
+            databaseID: 42
+        )
+        let context = try Hash58.RecoveryContext(database: database)
+        guard let engine = Hash58.MetalRecoveryEngine(context: context) else {
+            throw XCTSkip("Metal is unavailable on this test destination")
+        }
+
+        let recovered = try await engine.search(from: 0, count: 100)
+
+        XCTAssertNotNil(recovered)
+        XCTAssertTrue(try Hash58.verify(database, firewireID: recovered!))
     }
 
     func testUnicodeAlbumRoundTrips() throws {
@@ -106,6 +260,52 @@ final class ClassicDatabaseTests: XCTestCase {
         XCTAssertTrue(diagnostics.sortIndexesValid)
         XCTAssertTrue(diagnostics.jumpTablesValid)
         XCTAssertTrue(diagnostics.hash58Valid)
+    }
+
+    func testApplyingPlayCountsPreservesDeviceRatingAndListeningHistory() throws {
+        let original = try ClassicDatabase.build(
+            library: ClassicLibrary(
+                name: "My iPod",
+                tracks: [track(id: 7, title: "Old", artist: "Artist", album: "Album")],
+                playlists: []
+            ),
+            firewireID: firewireID,
+            databaseID: 99
+        )
+        let trackOffset = try XCTUnwrap(original.range(of: Data("mhit".utf8))?.lowerBound)
+        var seeded = original
+        seeded[trackOffset + 0x1f] = 40
+        try seeded.setLittleUInt32(10, at: trackOffset + 0x50)
+        try seeded.setLittleUInt32(3, at: trackOffset + 0x9c)
+        seeded = try Hash58.sign(seeded, firewireID: firewireID)
+
+        var playCounts = Data(repeating: 0, count: 0x60 + 0x1c)
+        playCounts.replaceSubrange(0..<4, with: Data("mhdp".utf8))
+        try playCounts.setLittleUInt32(0x60, at: 4)
+        try playCounts.setLittleUInt32(0x1c, at: 8)
+        try playCounts.setLittleUInt32(1, at: 12)
+        try playCounts.setLittleUInt32(2, at: 0x60)
+        try playCounts.setLittleUInt32(1234, at: 0x64)
+        try playCounts.setLittleUInt32(5678, at: 0x68)
+        try playCounts.setLittleUInt32(100, at: 0x6c)
+        try playCounts.setLittleUInt32(4, at: 0x74)
+        try playCounts.setLittleUInt32(9012, at: 0x78)
+
+        let updated = try ClassicDatabase.applyingPlayCounts(
+            playCounts,
+            to: seeded,
+            firewireID: firewireID
+        )
+        let updatedOffset = try XCTUnwrap(updated.range(of: Data("mhit".utf8))?.lowerBound)
+        XCTAssertEqual(updated[updatedOffset + 0x1f], 100)
+        XCTAssertEqual(updated[updatedOffset + 0x79], 40)
+        XCTAssertEqual(try updated.littleUInt32(at: updatedOffset + 0x50), 12)
+        XCTAssertEqual(try updated.littleUInt32(at: updatedOffset + 0x58), 1234)
+        XCTAssertEqual(try updated.littleUInt32(at: updatedOffset + 0x6c), 5678)
+        XCTAssertEqual(try updated.littleUInt32(at: updatedOffset + 0x9c), 7)
+        XCTAssertEqual(try updated.littleUInt32(at: updatedOffset + 0xa0), 9012)
+        XCTAssertEqual(updated[updatedOffset + 0xb2], 1)
+        XCTAssertTrue(try ClassicDatabase.inspect(updated, firewireID: firewireID).hash58Valid)
     }
 
     func testTypeThreeSectionDoesNotReplaceMainPlaylistSection() throws {

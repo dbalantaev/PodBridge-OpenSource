@@ -8,6 +8,10 @@ import Foundation
 /// This type does not modify the iPod. All destination writes are performed by
 /// `IPodSyncEngine` after the scan has completed.
 enum MusicTransferEngine {
+    struct DirectCopyResult: Sendable {
+        let copiedFiles: Int
+        let copiedBytes: Int64
+    }
     /// File extensions accepted by the source scanner.
     static let supportedExtensions: Set<String> = [
         "aac", "aif", "aiff", "m4a", "m4b", "mp3", "wav",
@@ -332,5 +336,86 @@ enum MusicTransferEngine {
             }
             counter += 1
         }
+    }
+
+    /// Copies a folder's contents without touching the iPod database. This is
+    /// used by Rockbox, which discovers files from its own filesystem browser.
+    static func copyFolderContents(
+        from source: URL,
+        to destination: URL,
+        progress: @escaping @Sendable (Int) async -> Void
+    ) async throws -> DirectCopyResult {
+        try await Task.detached(priority: .userInitiated) {
+            let manager = FileManager.default
+            let sourceRoot = source.standardizedFileURL.path
+            let destinationRoot = destination.standardizedFileURL.path
+            guard destinationRoot != sourceRoot,
+                  !destinationRoot.hasPrefix(sourceRoot + "/") else {
+                throw NSError(domain: "PodBridge.Rockbox", code: 1, userInfo: [
+                    NSLocalizedDescriptionKey: "Choose a different destination folder."
+                ])
+            }
+
+            let keys: Set<URLResourceKey> = [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey, .fileSizeKey]
+            let files = try recursiveFiles(at: source, keys: Array(keys))
+                .filter { (try? $0.resourceValues(forKeys: keys).isRegularFile) == true }
+                .sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
+            guard !files.isEmpty else {
+                throw NSError(domain: "PodBridge.Rockbox", code: 2, userInfo: [
+                    NSLocalizedDescriptionKey: "The selected folder has no files to copy."
+                ])
+            }
+
+            var bytes: Int64 = 0
+            for (index, file) in files.enumerated() {
+                try Task.checkCancellation()
+                let relative = String(file.standardizedFileURL.path.dropFirst(sourceRoot.count))
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                guard !relative.isEmpty else { continue }
+                let parts = relative.split(separator: "/").map { sanitizedSegment(String($0)) }
+                guard let filename = parts.last else { continue }
+                let parent = parts.dropLast().reduce(destination) { url, component in
+                    url.appendingPathComponent(component, isDirectory: true)
+                }
+                try manager.createDirectory(at: parent, withIntermediateDirectories: true)
+                let target = availableDestination(in: parent, filename: filename)
+                try manager.copyItem(at: file, to: target)
+                let copiedSize = (try? target.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? -1
+                let sourceSize = (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? -2
+                guard copiedSize == sourceSize else {
+                    try? manager.removeItem(at: target)
+                    throw NSError(domain: "PodBridge.Rockbox", code: 3, userInfo: [
+                        NSLocalizedDescriptionKey: "A copied file could not be verified."
+                    ])
+                }
+                bytes += sourceSize
+                await progress(index + 1)
+            }
+            return DirectCopyResult(copiedFiles: files.count, copiedBytes: bytes)
+        }.value
+    }
+
+    static func copyFile(
+        from source: URL,
+        to destination: URL
+    ) throws -> DirectCopyResult {
+        let manager = FileManager.default
+        let values = try source.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+        guard values.isRegularFile == true else {
+            throw NSError(domain: "PodBridge.Rockbox", code: 4, userInfo: [
+                NSLocalizedDescriptionKey: "Choose a theme file or a folder containing a theme."
+            ])
+        }
+        try manager.createDirectory(at: destination, withIntermediateDirectories: true)
+        let target = availableDestination(in: destination, filename: sanitizedFilename(source.lastPathComponent))
+        try manager.copyItem(at: source, to: target)
+        let copied = try target.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? -1
+        guard copied == values.fileSize else {
+            try? manager.removeItem(at: target)
+            throw NSError(domain: "PodBridge.Rockbox", code: 5, userInfo: [
+                NSLocalizedDescriptionKey: "The theme file could not be verified after copying."
+            ])
+        }
+        return DirectCopyResult(copiedFiles: 1, copiedBytes: Int64(copied))
     }
 }

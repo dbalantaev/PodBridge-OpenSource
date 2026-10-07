@@ -1,0 +1,45 @@
+disabled_rules:
+  - trailing_comma
+
+opt_in_rules:
+  - empty_count
+  - first_where
+  - multiline_parameters
+  - trailing_closure
+
+line_length:
+  warning: 120
+  error: 160
+  ignores_comments: true
+  ignores_urls: true
+  ignores_function_declarations: true
+  ignores_interpolated_strings: true
+
+identifier_name:
+  min_length: 3
+  excluded:
+    - id
+    - x
+    - y
+
+trailing_whitespace:
+  ignores_empty_lines: true
+  severity: error
+
+vertical_whitespace:
+  max_empty_lines: 1
+
+type_name:
+  min_length: 3
+  max_length: 40
+
+function_parameter_count:
+  warning: 5
+  error: 8
+
+included:
+  - PodBridge
+  - PodBridgeTests
+
+excluded:
+  - PodBridge/Assets.xcassets

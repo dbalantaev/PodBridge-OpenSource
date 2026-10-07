@@ -5,6 +5,129 @@ import XCTest
 @testable import PodBridge
 
 final class IPodSyncEngineTests: XCTestCase {
+    func testExportCopiesAudioWithoutChangingIPodAndUsesUniqueFolder() async throws {
+        let fixture = try makeDeletionFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: destination) }
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let first = try await IPodSyncEngine.exportTracks([fixture.track], root: fixture.root, destinationFolder: destination) { _ in }
+        let second = try await IPodSyncEngine.exportTracks([fixture.track], root: fixture.root, destinationFolder: destination) { _ in }
+
+        XCTAssertEqual(first.copiedTracks, 1)
+        XCTAssertNotEqual(first.folderURL, second.folderURL)
+        let exported = first.folderURL.appendingPathComponent("Artist/Album/01 - Delete Me.wav")
+        XCTAssertEqual(try Data(contentsOf: exported), fixture.audio)
+        XCTAssertEqual(try Data(contentsOf: fixture.audioURL), fixture.audio)
+        XCTAssertEqual(try Data(contentsOf: fixture.databaseURL), fixture.originalDatabase)
+    }
+
+    func testExportWritesStatisticsJSONCSVAndPlaylistM3U8ThenImportsJSON() async throws {
+        let fixture = try makeDeletionFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: destination) }
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        var exportedTrack = fixture.track
+        exportedTrack.rating = 100
+        exportedTrack.playCount = 23
+        exportedTrack.skipCount = 4
+        exportedTrack.lastPlayed = 3_900_000_000
+        exportedTrack.lastSkipped = 3_900_000_100
+
+        let export = try await IPodSyncEngine.exportTracks(
+            [exportedTrack],
+            playlists: [ClassicPlaylist(name: "Favorites", trackIDs: [exportedTrack.id])],
+            root: fixture.root,
+            destinationFolder: destination
+        ) { _ in }
+
+        let json = export.folderURL.appendingPathComponent("PodBridge Library.json")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: json.path))
+        let csv = try String(contentsOf: export.folderURL.appendingPathComponent("PodBridge Library.csv"), encoding: .utf8)
+        XCTAssertTrue(csv.contains("play_count"))
+        XCTAssertTrue(csv.contains("\"23\""))
+        let m3u = try String(contentsOf: export.folderURL.appendingPathComponent("Playlists/Favorites.m3u8"), encoding: .utf8)
+        XCTAssertTrue(m3u.hasPrefix("#EXTM3U\n"))
+
+        let imported = try await IPodSyncEngine.importLibraryJSON(json, root: fixture.root)
+        let restored = try XCTUnwrap(imported.library.tracks.first)
+        XCTAssertEqual(restored.rating, 100)
+        XCTAssertEqual(restored.playCount, 23)
+        XCTAssertEqual(restored.skipCount, 4)
+        XCTAssertEqual(restored.lastPlayed, 3_900_000_000)
+        XCTAssertEqual(restored.lastSkipped, 3_900_000_100)
+        XCTAssertTrue(imported.library.playlists.contains(ClassicPlaylist(name: "Favorites", trackIDs: [restored.id])))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: imported.backupURL.path))
+    }
+
+    func testClearLibraryRemovesTracksAndPlaylistsAndArchivesPlayCounts() async throws {
+        let fixture = try makeDeletionFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let itunes = fixture.databaseURL.deletingLastPathComponent()
+        var playCounts = Data(repeating: 0, count: 0x60 + 0x1c)
+        playCounts.replaceSubrange(0..<4, with: Data("mhdp".utf8))
+        try playCounts.setLittleUInt32(0x60, at: 4)
+        try playCounts.setLittleUInt32(0x1c, at: 8)
+        try playCounts.setLittleUInt32(1, at: 12)
+        try playCounts.setLittleUInt32(2, at: 0x60)
+        try playCounts.write(to: itunes.appendingPathComponent("Play Counts"))
+
+        let result = try await IPodSyncEngine.clearLibrary(root: fixture.root) { _ in }
+
+        XCTAssertEqual(result.removedTracks.count, 1)
+        XCTAssertEqual(result.failedFileDeletions, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.audioURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: itunes.appendingPathComponent("Play Counts").path))
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: itunes.path).contains { $0.hasPrefix("Play Counts.podbridge.") })
+        let database = try Data(contentsOf: fixture.databaseURL)
+        let library = try ClassicDatabase.parse(database)
+        XCTAssertTrue(library.tracks.isEmpty)
+        XCTAssertTrue(library.playlists.isEmpty)
+        let diagnostics = try ClassicDatabase.inspect(database, firewireID: Data([0x00, 0x0a, 0x27, 0x00, 0x1a, 0x2b, 0x3c, 0x4d]))
+        XCTAssertTrue(diagnostics.hash58Valid)
+        XCTAssertTrue(diagnostics.playlistSectionsConsistent)
+    }
+
+    func testSyncMergesAndArchivesDevicePlayCounts() async throws {
+        let fixture = try VirtualIPodFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        _ = try fixture.install(ClassicLibrary(
+            name: "Test iPod",
+            tracks: [artistTrack(id: 7, title: "Existing", artist: "Artist", album: "Album")],
+            playlists: []
+        ))
+
+        var playCounts = Data(repeating: 0, count: 0x60 + 0x1c)
+        playCounts.replaceSubrange(0..<4, with: Data("mhdp".utf8))
+        try playCounts.setLittleUInt32(0x60, at: 4)
+        try playCounts.setLittleUInt32(0x1c, at: 8)
+        try playCounts.setLittleUInt32(1, at: 12)
+        try playCounts.setLittleUInt32(3, at: 0x60)
+        try playCounts.setLittleUInt32(100, at: 0x6c)
+        try playCounts.write(to: fixture.itunes.appendingPathComponent("Play Counts"))
+
+        let source = fixture.root.appendingPathComponent("New.wav")
+        try waveData().write(to: source)
+        let file = MusicFile(
+            sourceURL: source,
+            relativePath: source.lastPathComponent,
+            byteCount: Int64(try Data(contentsOf: source).count)
+        )
+        _ = try await IPodSyncEngine.sync(files: [file], root: fixture.root) { _ in }
+
+        let updated = try fixture.readDatabase()
+        let trackOffset = try XCTUnwrap(updated.range(of: Data("mhit".utf8))?.lowerBound)
+        XCTAssertEqual(updated[trackOffset + 0x1f], 100)
+        XCTAssertEqual(try updated.littleUInt32(at: trackOffset + 0x50), 3)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.itunes.appendingPathComponent("Play Counts").path))
+        XCTAssertEqual(
+            try Data(contentsOf: fixture.itunes.appendingPathComponent("Play Counts.bak")),
+            playCounts
+        )
+    }
+
     func testReplacingPlaylistMembersUsesTransactionalWriter() async throws {
         let fixture = try VirtualIPodFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
@@ -567,6 +690,58 @@ final class IPodSyncEngineTests: XCTestCase {
         XCTAssertEqual(try IPodSyncEngine.library(root: fixture.root), library)
     }
 
+    /// Reproduces the reported real-library shape: 5,270 tracks with two
+    /// 13/15-song AMA albums. Replacing both album covers must not change or
+    /// lose any music record, even in a large iTunesDB.
+    func testLargeLibraryArtworkRepairPreservesAll5270TracksAndAMAAlbums() async throws {
+        let fixture = try VirtualIPodFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+
+        var tracks = (1...5_242).map { index in
+            var track = artistTrack(
+                id: UInt32(index),
+                title: "Library Track \(index)",
+                artist: "Library Artist \(index % 120)",
+                album: "Library Album \(index / 10)"
+            )
+            track.albumID = UInt32(index / 10 + 1)
+            track.artistID = UInt32(index % 120 + 1)
+            track.trackNumber = UInt32(index % 10 + 1)
+            return track
+        }
+        let firstAMAIDs = Array(5_243...5_255).map(UInt32.init)
+        let secondAMAIDs = Array(5_256...5_270).map(UInt32.init)
+        tracks += firstAMAIDs.enumerated().map { offset, id in
+            var track = artistTrack(id: id, title: "AMA One \(offset + 1)", artist: "AMA", album: "AMA Album One")
+            track.albumArtist = "AMA"; track.albumID = 900; track.artistID = 901; track.trackNumber = UInt32(offset + 1)
+            return track
+        }
+        tracks += secondAMAIDs.enumerated().map { offset, id in
+            var track = artistTrack(id: id, title: "AMA Two \(offset + 1)", artist: "AMA", album: "AMA Album Two")
+            track.albumArtist = "AMA"; track.albumID = 902; track.artistID = 901; track.trackNumber = UInt32(offset + 1)
+            return track
+        }
+        let originalLibrary = ClassicLibrary(name: "Large iPod", tracks: tracks, playlists: [])
+        _ = try fixture.install(originalLibrary)
+        let artwork = try onePixelPNG()
+
+        _ = try await IPodSyncEngine.setAlbumArtwork(trackIDs: firstAMAIDs, artwork: artwork, root: fixture.root)
+        let result = try await IPodSyncEngine.setAlbumArtwork(trackIDs: secondAMAIDs, artwork: artwork, root: fixture.root)
+        let finalLibrary = try IPodSyncEngine.library(root: fixture.root)
+
+        XCTAssertEqual(finalLibrary.tracks.count, 5_270)
+        XCTAssertEqual(finalLibrary.tracks.map(\.id), originalLibrary.tracks.map(\.id))
+        XCTAssertEqual(finalLibrary.tracks.map(\.databaseID), originalLibrary.tracks.map(\.databaseID))
+        XCTAssertEqual(finalLibrary.tracks.map(\.ipodPath), originalLibrary.tracks.map(\.ipodPath))
+        XCTAssertEqual(finalLibrary.tracks.map(\.title), originalLibrary.tracks.map(\.title))
+        XCTAssertEqual(finalLibrary.tracks.map(\.artist), originalLibrary.tracks.map(\.artist))
+        XCTAssertEqual(finalLibrary.tracks.map(\.album), originalLibrary.tracks.map(\.album))
+        XCTAssertEqual(finalLibrary.tracks.filter { $0.album == "AMA Album One" }.count, 13)
+        XCTAssertEqual(finalLibrary.tracks.filter { $0.album == "AMA Album Two" }.count, 15)
+        XCTAssertEqual(result.library, finalLibrary)
+        XCTAssertTrue(try ClassicDatabase.inspect(fixture.readDatabase(), firewireID: fixture.firewireID).hash58Valid)
+    }
+
     /// Simulates cancellation/failure after activating a deletion database.
     func testVirtualIPodInjectedDeletionFailureRestoresDatabaseAndAudio() async throws {
         let fixture = try VirtualIPodFixture()
@@ -750,6 +925,12 @@ final class IPodSyncEngineTests: XCTestCase {
             artwork: playlistArtwork,
             root: root
         )
+        XCTAssertEqual(trackEdit.library.tracks.map(\.id), library.tracks.map(\.id))
+        XCTAssertEqual(trackEdit.library.tracks.map(\.databaseID), library.tracks.map(\.databaseID))
+        XCTAssertEqual(trackEdit.library.tracks.map(\.ipodPath), library.tracks.map(\.ipodPath))
+        XCTAssertEqual(trackEdit.library.tracks.map(\.title), library.tracks.map(\.title))
+        XCTAssertEqual(trackEdit.library.tracks.map(\.artist), library.tracks.map(\.artist))
+        XCTAssertEqual(trackEdit.library.tracks.map(\.album), library.tracks.map(\.album))
         XCTAssertNotEqual(trackEdit.library.tracks[0].artworkImageID, firstTrack.artworkImageID)
         XCTAssertEqual(trackEdit.library.tracks[1].artworkImageID, secondTrack.artworkImageID)
 
@@ -758,6 +939,12 @@ final class IPodSyncEngineTests: XCTestCase {
             artwork: playlistArtwork,
             root: root
         )
+        XCTAssertEqual(albumEdit.library.tracks.map(\.id), trackEdit.library.tracks.map(\.id))
+        XCTAssertEqual(albumEdit.library.tracks.map(\.databaseID), trackEdit.library.tracks.map(\.databaseID))
+        XCTAssertEqual(albumEdit.library.tracks.map(\.ipodPath), trackEdit.library.tracks.map(\.ipodPath))
+        XCTAssertEqual(albumEdit.library.tracks.map(\.title), trackEdit.library.tracks.map(\.title))
+        XCTAssertEqual(albumEdit.library.tracks.map(\.artist), trackEdit.library.tracks.map(\.artist))
+        XCTAssertEqual(albumEdit.library.tracks.map(\.album), trackEdit.library.tracks.map(\.album))
         XCTAssertTrue(zip(trackEdit.library.tracks, albumEdit.library.tracks).allSatisfy { pair in
             pair.0.artworkImageID != pair.1.artworkImageID
         })

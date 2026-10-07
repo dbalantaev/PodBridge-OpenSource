@@ -4,8 +4,9 @@
   Copy music from Files on your iPhone or iPad straight to a click-wheel iPod.
 </p>
 
-For the code-level structure and ownership boundaries, see
-[ARCHITECTURE.md](ARCHITECTURE.md).
+For code ownership and contributor workflow, see [ARCHITECTURE.md](ARCHITECTURE.md),
+[AGENTS.md](AGENTS.md), and the [maintainer knowledge base](Documentation/AgentContext/ProjectKnowledge.md).
+Run `Scripts/lint.sh` to check Swift style when SwiftLint is installed.
 
 <p align="center">
   <img src="https://img.shields.io/badge/iOS-17%2B-007AFF?style=flat-square" alt="iOS 17+">
@@ -46,6 +47,9 @@ single track before transferring a large folder.
 - Supports AAC, AIFF, M4A, M4B, MP3, and WAV files.
 - Reads title, artist, album, duration, bitrate, and embedded artwork.
 - Imports `.m3u` and `.m3u8` playlists while keeping their track order.
+- Includes a Rockbox file mode: choose any destination folder inside the iPod
+  volume for direct music copies, and install a theme from Files into
+  `.rockbox/themes`.
 - Lets you review detected tracks and playlists before changing the iPod.
 - Adds music to the native iPod menus and Cover Flow.
 - Creates a database backup before each change and verifies the result before

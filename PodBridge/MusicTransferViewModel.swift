@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Dmitry Balantaev
 
 import Foundation
+import UIKit
 
 struct IPodAlbum: Identifiable, Sendable {
     let id: String
@@ -39,6 +40,28 @@ struct LibraryRepairCompletion: Identifiable, Equatable {
     var repairedArtwork: Int { restoredEmbeddedArtwork + addedOnlineArtwork }
 }
 
+struct SignatureRecoveryProgress: Equatable, Sendable {
+    let tested: UInt64
+    let total: UInt64
+    let candidatesPerSecond: Double
+
+    var fraction: Double { total == 0 ? 0 : Double(tested) / Double(total) }
+    var remainingSeconds: TimeInterval? {
+        guard candidatesPerSecond > 0 else { return nil }
+        return Double(total - tested) / candidatesPerSecond
+    }
+}
+
+#if DEBUG || PODBRIDGE_DEMO
+enum DemoIPodScenario: String, CaseIterable, Identifiable {
+    case normal
+    case diskUseDisabled
+    case missingSignatureID
+
+    var id: String { rawValue }
+}
+#endif
+
 @MainActor
 final class MusicTransferViewModel: ObservableObject {
     @Published private(set) var sourceFolder: URL?
@@ -57,6 +80,9 @@ final class MusicTransferViewModel: ObservableObject {
     @Published private(set) var isConnectingIPod = false
     @Published private(set) var isCopying = false
     @Published private(set) var copiedCount = 0
+    @Published private(set) var isRockboxCopying = false
+    @Published private(set) var rockboxCopiedCount = 0
+    @Published private(set) var rockboxTotalCount = 0
     @Published private(set) var transferCompletion: TransferCompletion?
     @Published private(set) var libraryRepairCompletion: LibraryRepairCompletion?
     @Published private(set) var resultMessage: String?
@@ -66,19 +92,32 @@ final class MusicTransferViewModel: ObservableObject {
     @Published private(set) var deletionBackups: [IPodSyncEngine.DeletionBackup] = []
     @Published private(set) var isRestoring = false
     @Published private(set) var isManagingLibrary = false
+    @Published private(set) var isExporting = false
+    @Published private(set) var exportedCount = 0
+    @Published private(set) var exportTotalCount = 0
+    @Published private(set) var deletionProgress: IPodSyncEngine.DeletionProgress?
     @Published private(set) var artworkSearchProgress: IPodSyncEngine.ArtworkSearchProgress?
 #if PODBRIDGE_ALACARTE
     @Published private(set) var alacarteStatus: String?
 #endif
     @Published private(set) var destinationNeedsFirewireID = false
+    @Published private(set) var destinationDiskUseStatus: IPodDiskUseStatus = .unavailable
+    @Published private(set) var isUpdatingDiskUse = false
+    @Published private(set) var signatureRecoveryProgress: SignatureRecoveryProgress?
+    @Published private(set) var isRecoveringSignatureID = false
+    @Published private(set) var signatureRecoveryUsesMetal = false
     @Published var errorMessage: String?
 
     private var copyTask: Task<Void, Never>?
-#if DEBUG
+    private var rockboxCopyTask: Task<Void, Never>?
+    private var signatureRecoveryTask: Task<Void, Never>?
+#if DEBUG || PODBRIDGE_DEMO
     private var simulationTask: Task<Void, Never>?
     private var emulatedIPodContainer: URL?
 #endif
     private var artworkTask: Task<Void, Never>?
+    private var exportStartedAt: Date?
+    private var deletionStartedAt: Date?
     @Published private(set) var isEmulatingIPod = false
 
     var totalBytes: Int64 {
@@ -88,6 +127,128 @@ final class MusicTransferViewModel: ObservableObject {
     var copyProgress: Double {
         guard !files.isEmpty else { return 0 }
         return Double(copiedCount) / Double(files.count)
+    }
+
+    var operationETA: String? {
+        let completed: Int
+        let total: Int
+        let started: Date?
+        if isExporting {
+            completed = exportedCount
+            total = exportTotalCount
+            started = exportStartedAt
+        } else if let progress = deletionProgress {
+            completed = progress.completed
+            total = progress.total
+            started = deletionStartedAt
+        } else {
+            return nil
+        }
+        guard completed > 0, total > completed, let started else { return nil }
+        let seconds = Int(Date().timeIntervalSince(started) / Double(completed) * Double(total - completed))
+        guard seconds >= 0 else { return nil }
+        return seconds < 60 ? "About \(max(1, seconds))s left" : "About \((seconds + 59) / 60)m left"
+    }
+
+    func exportTracks(_ tracks: [ClassicTrack], to folder: URL) {
+        guard let destinationFolder, !isExporting, !isManagingLibrary, !isCopying, !isRestoring, !tracks.isEmpty else { return }
+        isExporting = true
+        exportedCount = 0
+        exportTotalCount = tracks.count
+        exportStartedAt = Date()
+        resultMessage = nil
+        errorMessage = nil
+        Task {
+            let deviceAccess = destinationFolder.startAccessingSecurityScopedResource()
+            let folderAccess = folder.startAccessingSecurityScopedResource()
+            defer {
+                if folderAccess { folder.stopAccessingSecurityScopedResource() }
+                if deviceAccess { destinationFolder.stopAccessingSecurityScopedResource() }
+                isExporting = false
+                exportStartedAt = nil
+            }
+            do {
+                let result = try await IPodSyncEngine.exportTracks(tracks, playlists: libraryPlaylists, root: destinationFolder, destinationFolder: folder) { count in
+                    await MainActor.run { self.exportedCount = count }
+                }
+                resultMessage = "Copied \(result.copiedTracks) songs to \(result.folderURL.lastPathComponent) in Files. The iPod was not changed."
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func importLibraryJSON(_ url: URL) {
+        guard let destinationFolder, !isManagingLibrary, !isExporting, !isCopying, !isRestoring else { return }
+        isManagingLibrary = true
+        resultMessage = nil
+        errorMessage = nil
+        Task {
+            let deviceAccess = destinationFolder.startAccessingSecurityScopedResource()
+            let fileAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if fileAccess { url.stopAccessingSecurityScopedResource() }
+                if deviceAccess { destinationFolder.stopAccessingSecurityScopedResource() }
+                isManagingLibrary = false
+            }
+            do {
+                let result = try await IPodSyncEngine.importLibraryJSON(url, root: destinationFolder)
+                libraryTracks = result.library.tracks
+                libraryPlaylists = result.library.playlists
+                resultMessage = "Restored statistics for \(result.restoredTracks) songs and \(result.restoredPlaylists) playlists. Backup: \(result.backupURL.lastPathComponent)."
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func clearLibraryPermanently() {
+        guard let destinationFolder, !isManagingLibrary, !isExporting, !isCopying, !isRestoring, !libraryTracks.isEmpty else { return }
+#if DEBUG || PODBRIDGE_DEMO
+        if isEmulatingIPod {
+            emulateDeleteTracks(Set(libraryTracks.map(\.id)))
+            libraryPlaylists = []
+            resultMessage = "Cleared the demo iPod library."
+            return
+        }
+#endif
+        isManagingLibrary = true
+        deletionProgress = .init(stage: "Preparing the iPod library", completed: 0, total: 0)
+        deletionStartedAt = nil
+        resultMessage = nil
+        errorMessage = nil
+        Task {
+            let access = destinationFolder.startAccessingSecurityScopedResource()
+            defer {
+                if access { destinationFolder.stopAccessingSecurityScopedResource() }
+                isManagingLibrary = false
+                deletionProgress = nil
+                deletionStartedAt = nil
+            }
+            do {
+                let result = try await IPodSyncEngine.clearLibrary(root: destinationFolder) { progress in
+                    await MainActor.run {
+                        if progress.total > 0, self.deletionStartedAt == nil { self.deletionStartedAt = Date() }
+                        self.deletionProgress = progress
+                    }
+                }
+                let library = try IPodSyncEngine.library(root: destinationFolder)
+                libraryTracks = library.tracks
+                libraryPlaylists = library.playlists
+                existingTrackCount = result.remainingTracks
+                refreshStorage(for: destinationFolder)
+                resultMessage = result.failedFileDeletions == 0
+                    ? "Erased all \(result.removedTracks.count) songs and playlists from the iPod."
+                    : "Cleared the library, but \(result.failedFileDeletions) audio files could not be removed."
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func deleteArtistPermanently(_ artist: String) {
+        let tracks = libraryTracks.filter { $0.artist == artist }
+        deleteTracksPermanently(tracks, description: artist)
     }
 
     var storageUsedBytes: Int64? {
@@ -145,26 +306,40 @@ final class MusicTransferViewModel: ObservableObject {
         }
     }
 
-#if DEBUG
-    func emulateConnectedIPod() {
+#if DEBUG || PODBRIDGE_DEMO
+    func emulateConnectedIPod(_ scenario: DemoIPodScenario = .normal) {
         guard !isCopying && !isManagingLibrary && !isRestoring else { return }
         if isEmulatingIPod {
             disconnectEmulatedIPod()
-            return
         }
 
         let manager = FileManager.default
         let container = manager.temporaryDirectory
             .appendingPathComponent("PodBridge-Emulated-\(UUID().uuidString)", isDirectory: true)
         do {
-            let root = container.appendingPathComponent("Demo iPod", isDirectory: true)
+            let rootName: String
+            switch scenario {
+            case .normal: rootName = "Demo iPod"
+            case .diskUseDisabled: rootName = "Demo iPod · Disk Use Off"
+            case .missingSignatureID: rootName = "Demo iPod · Missing ID"
+            }
+            let root = container.appendingPathComponent(rootName, isDirectory: true)
             let device = root.appendingPathComponent("iPod_Control/Device", isDirectory: true)
             let itunes = root.appendingPathComponent("iPod_Control/iTunes", isDirectory: true)
             try manager.createDirectory(at: device, withIntermediateDirectories: true)
             try manager.createDirectory(at: itunes, withIntermediateDirectories: true)
-            try "FirewireGuid: 0x000A27001A2B3C4D\n".write(
-                to: device.appendingPathComponent("SysInfo"), atomically: true, encoding: .utf8
+            if scenario != .missingSignatureID {
+                try "FirewireGuid: 0x000A27001A2B3C4D\n".write(
+                    to: device.appendingPathComponent("SysInfo"), atomically: true, encoding: .utf8
+                )
+            }
+            var preferences = Data(repeating: 0, count: 64)
+            if scenario != .diskUseDisabled { preferences[0x1f] = 1 }
+            try preferences.write(to: itunes.appendingPathComponent("iTunesPrefs"), options: .atomic)
+            let plist = try PropertyListSerialization.data(
+                fromPropertyList: ["iPodPrefs": preferences], format: .binary, options: 0
             )
+            try plist.write(to: itunes.appendingPathComponent("iTunesPrefs.plist"), options: .atomic)
             let demoTracks = Self.demoTracks
             let library = ClassicLibrary(
                 name: "Demo iPod", tracks: demoTracks,
@@ -180,8 +355,8 @@ final class MusicTransferViewModel: ObservableObject {
             try database.write(to: itunes.appendingPathComponent("iTunesDB"), options: .atomic)
             emulatedIPodContainer = container
             destinationFolder = root
-            destinationDeviceProfile = nil
-            shouldChooseDeviceProfile = true
+            destinationDeviceProfile = .classic7
+            shouldChooseDeviceProfile = false
             libraryTracks = demoTracks
             libraryPlaylists = library.playlists
             existingTrackCount = demoTracks.count
@@ -189,15 +364,16 @@ final class MusicTransferViewModel: ObservableObject {
             storageFreeBytes = 83_000_000_000
             backups = []
             deletionBackups = []
-            destinationNeedsFirewireID = false
+            destinationNeedsFirewireID = scenario == .missingSignatureID
+            destinationDiskUseStatus = scenario == .diskUseDisabled ? .disabled : .enabled
             errorMessage = nil
             resultMessage = nil
             isEmulatingIPod = true
-            AppLogger.device("Debug iPod emulation connected", level: .info)
+            AppLogger.device("Demo iPod connected scenario=\(scenario.rawValue)", level: .info)
         } catch {
             try? manager.removeItem(at: container)
             errorMessage = "Could not create the emulated iPod: \(error.localizedDescription)"
-            AppLogger.device("Debug iPod emulation failed error=\(error.localizedDescription)", level: .error)
+            AppLogger.device("Demo iPod creation failed error=\(error.localizedDescription)", level: .error)
         }
     }
 
@@ -215,23 +391,24 @@ final class MusicTransferViewModel: ObservableObject {
         backups = []
         deletionBackups = []
         destinationNeedsFirewireID = false
+        destinationDiskUseStatus = .unavailable
         if let container = emulatedIPodContainer { try? FileManager.default.removeItem(at: container) }
         emulatedIPodContainer = nil
-        AppLogger.device("Debug iPod emulation disconnected", level: .info)
+        AppLogger.device("Demo iPod disconnected", level: .info)
     }
 
     private static var demoTracks: [ClassicTrack] {
         let rows: [(String, String, String, UInt32, UInt32)] = [
-            ("One More Time", "Daft Punk", "Discovery", 1, 320_000),
-            ("Aerodynamic", "Daft Punk", "Discovery", 2, 207_000),
-            ("Digital Love", "Daft Punk", "Discovery", 3, 298_000),
-            ("Harder, Better, Faster, Stronger", "Daft Punk", "Discovery", 4, 224_000),
-            ("Instant Crush", "Daft Punk", "Random Access Memories", 5, 337_000),
-            ("Get Lucky", "Daft Punk", "Random Access Memories", 6, 369_000),
-            ("Borderline", "Tame Impala", "The Slow Rush", 7, 237_000),
-            ("Eventually", "Tame Impala", "Currents", 8, 319_000),
-            ("Blinding Lights", "The Weeknd", "After Hours", 9, 200_000),
-            ("Nights", "Frank Ocean", "Blonde", 10, 307_000)
+            ("First Light", "Sample Artist", "Morning Sessions", 1, 180_000),
+            ("Open Road", "Sample Artist", "Morning Sessions", 2, 207_000),
+            ("Blue Hour", "Sample Artist", "Morning Sessions", 3, 198_000),
+            ("Northbound", "Studio Example", "Travel Notes", 1, 224_000),
+            ("Paper Map", "Studio Example", "Travel Notes", 2, 237_000),
+            ("Home Again", "Studio Example", "Travel Notes", 3, 169_000),
+            ("Evening Walk", "Demo Ensemble", "Quiet Places", 1, 217_000),
+            ("Lanterns", "Demo Ensemble", "Quiet Places", 2, 219_000),
+            ("After Rain", "Demo Ensemble", "Quiet Places", 3, 200_000),
+            ("Last Train", "Demo Ensemble", "Quiet Places", 4, 227_000)
         ]
         return rows.enumerated().map { index, row in
             ClassicTrack(
@@ -241,7 +418,8 @@ final class MusicTransferViewModel: ObservableObject {
                 ipodPath: String(format: ":iPod_Control:Music:F00:PB%04d.mp3", index + 1),
                 byteCount: 8_000_000, durationMS: row.4, trackNumber: row.3, year: 2001,
                 bitrate: 256, sampleRate: 44_100, dateAdded: 3_000_000_000 + UInt32(index),
-                albumID: UInt32(index + 1), artistID: UInt32(index + 1),
+                albumID: UInt32(index < 3 ? 1 : (index < 6 ? 2 : 3)),
+                artistID: UInt32(index < 3 ? 1 : (index < 6 ? 2 : 3)),
                 artworkImageID: index % 3 == 0 ? 0 : UInt32(index + 100), albumArtist: row.1
             )
         }
@@ -263,7 +441,8 @@ final class MusicTransferViewModel: ObservableObject {
     }
 
     func selectDestination(_ url: URL) {
-#if DEBUG
+        stopLocalSignatureRecovery()
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod { disconnectEmulatedIPod() }
 #endif
         AppLogger.device("Destination selected name=\(url.lastPathComponent)", level: .info)
@@ -281,6 +460,7 @@ final class MusicTransferViewModel: ObservableObject {
         libraryPlaylists = []
         deletionBackups = []
         destinationNeedsFirewireID = false
+        destinationDiskUseStatus = .unavailable
         isConnectingIPod = true
         Task {
             await Task.yield()
@@ -295,7 +475,8 @@ final class MusicTransferViewModel: ObservableObject {
                         library,
                         backups,
                         values?.volumeTotalCapacity.map(Int64.init),
-                        values?.volumeAvailableCapacity.map(Int64.init)
+                        values?.volumeAvailableCapacity.map(Int64.init),
+                        IPodDiskUsePreferences.status(at: url)
                     )
                 }.value
                 existingTrackCount = loaded.0.tracks.count
@@ -304,6 +485,7 @@ final class MusicTransferViewModel: ObservableObject {
                 backups = loaded.1
                 storageTotalBytes = loaded.2
                 storageFreeBytes = loaded.3
+                destinationDiskUseStatus = loaded.4
                 shouldChooseDeviceProfile = true
                 AppLogger.device("Destination validation succeeded existingTracks=\(existingTrackCount ?? 0)", level: .info)
             } catch {
@@ -313,6 +495,97 @@ final class MusicTransferViewModel: ObservableObject {
             }
             isConnectingIPod = false
         }
+    }
+
+    func copyMusicForRockbox(from source: URL, to folder: URL) {
+        guard let destinationFolder, !isRockboxCopying, !isCopying, !isManagingLibrary, !isRestoring else { return }
+        guard isFolder(folder, inside: destinationFolder) else {
+            errorMessage = "Choose a destination folder on the connected iPod."
+            return
+        }
+        isRockboxCopying = true
+        rockboxCopiedCount = 0
+        rockboxTotalCount = 0
+        resultMessage = nil
+        errorMessage = nil
+        rockboxCopyTask = Task { [self] in
+            let sourceAccess = source.startAccessingSecurityScopedResource()
+            let iPodAccess = destinationFolder.startAccessingSecurityScopedResource()
+            let folderAccess = folder.startAccessingSecurityScopedResource()
+            defer {
+                if folderAccess { folder.stopAccessingSecurityScopedResource() }
+                if iPodAccess { destinationFolder.stopAccessingSecurityScopedResource() }
+                if sourceAccess { source.stopAccessingSecurityScopedResource() }
+                isRockboxCopying = false
+                rockboxCopyTask = nil
+            }
+            do {
+                let report = try await MusicTransferEngine.scanWithReport(folder: source)
+                let audioFiles = report.files
+                guard !audioFiles.isEmpty else { throw PodBridgeError.noMusicFiles }
+                rockboxTotalCount = audioFiles.count
+                let result = try await MusicTransferEngine.copyFolderContents(from: source, to: folder) { count in
+                    await MainActor.run { self.rockboxCopiedCount = count }
+                }
+                resultMessage = "Copied \(result.copiedFiles) files (\(result.copiedBytes.formatted(.byteCount(style: .file)))) to \(folder.lastPathComponent) for Rockbox."
+                AppLogger.sync("Rockbox music copy completed files=\(result.copiedFiles) destination=\(folder.lastPathComponent)", level: .info)
+            } catch is CancellationError {
+                resultMessage = "Rockbox music copy stopped after \(rockboxCopiedCount) files."
+            } catch {
+                errorMessage = error.localizedDescription
+                AppLogger.sync("Rockbox music copy failed error=\(error.localizedDescription)", level: .error)
+            }
+        }
+    }
+
+    func installRockboxTheme(from source: URL) {
+        guard let destinationFolder, !isRockboxCopying, !isCopying, !isManagingLibrary, !isRestoring else { return }
+        let themes = destinationFolder.appendingPathComponent(".rockbox/themes", isDirectory: true)
+        isRockboxCopying = true
+        rockboxCopiedCount = 0
+        rockboxTotalCount = 0
+        resultMessage = nil
+        errorMessage = nil
+        rockboxCopyTask = Task { [self] in
+            let sourceAccess = source.startAccessingSecurityScopedResource()
+            let iPodAccess = destinationFolder.startAccessingSecurityScopedResource()
+            defer {
+                if iPodAccess { destinationFolder.stopAccessingSecurityScopedResource() }
+                if sourceAccess { source.stopAccessingSecurityScopedResource() }
+                isRockboxCopying = false
+                rockboxCopyTask = nil
+            }
+            do {
+                let values = try source.resourceValues(forKeys: [.isDirectoryKey])
+                let result: MusicTransferEngine.DirectCopyResult
+                if values.isDirectory == true {
+                    let files = try await MusicTransferEngine.scanWithReport(folder: source).files
+                    rockboxTotalCount = max(files.count, 1)
+                    result = try await MusicTransferEngine.copyFolderContents(from: source, to: themes) { count in
+                        await MainActor.run { self.rockboxCopiedCount = count }
+                    }
+                } else {
+                    result = try MusicTransferEngine.copyFile(from: source, to: themes)
+                    rockboxCopiedCount = 1
+                    rockboxTotalCount = 1
+                }
+                resultMessage = "Installed \(result.copiedFiles) theme file\(result.copiedFiles == 1 ? "" : "s") in .rockbox/themes."
+                AppLogger.sync("Rockbox theme installed files=\(result.copiedFiles)", level: .info)
+            } catch {
+                errorMessage = error.localizedDescription
+                AppLogger.sync("Rockbox theme installation failed error=\(error.localizedDescription)", level: .error)
+            }
+        }
+    }
+
+    func cancelRockboxCopy() {
+        rockboxCopyTask?.cancel()
+    }
+
+    private func isFolder(_ folder: URL, inside root: URL) -> Bool {
+        let folderPath = folder.standardizedFileURL.path
+        let rootPath = root.standardizedFileURL.path
+        return folderPath != rootPath && folderPath.hasPrefix(rootPath + "/")
     }
 
     func selectDeviceProfile(_ profile: IPodDeviceProfile) {
@@ -329,7 +602,12 @@ final class MusicTransferViewModel: ObservableObject {
             deletionBackups = IPodSyncEngine.deletionBackups().filter { $0.deviceIdentifier == databaseKey.hexString }
             AppLogger.device("Device profile selected model=\(profile.rawValue) checksum=\(String(describing: profile.checksum)) tested=\(profile.isHardwareTested)", level: .info)
         } catch PodBridgeError.missingFirewireID {
+#if targetEnvironment(macCatalyst)
+            destinationNeedsFirewireID = false
+            errorMessage = "PodBridge could not read this iPod’s USB serial number. Reconnect the iPod directly to the Mac, choose its mounted volume again, and make sure removable-volume access is allowed."
+#else
             destinationNeedsFirewireID = true
+#endif
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -337,7 +615,8 @@ final class MusicTransferViewModel: ObservableObject {
 
     func disconnectDestination() {
         guard !isCopying && !isManagingLibrary && !isRestoring else { return }
-#if DEBUG
+        stopLocalSignatureRecovery()
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod {
             disconnectEmulatedIPod()
             return
@@ -354,6 +633,7 @@ final class MusicTransferViewModel: ObservableObject {
         backups = []
         deletionBackups = []
         destinationNeedsFirewireID = false
+        destinationDiskUseStatus = .unavailable
         AppLogger.device("iPod destination safely released by user", level: .info)
     }
 
@@ -371,6 +651,158 @@ final class MusicTransferViewModel: ObservableObject {
             repairDatabaseSignature()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    func removeSignatureIDForRecoveryTest() throws -> URL {
+        guard let destinationFolder else { throw PodBridgeError.noDestinationFolder }
+        guard !isEmulatingIPod else {
+            throw NSError(domain: "PodBridge.Diagnostics", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "Connect the physical iPod before using this test."
+            ])
+        }
+        let access = destinationFolder.startAccessingSecurityScopedResource()
+        defer { if access { destinationFolder.stopAccessingSecurityScopedResource() } }
+
+        let id = try ClassicDatabase.firewireID(at: destinationFolder)
+        let hex = id.map { String(format: "%02X", $0) }.joined()
+        let manager = FileManager.default
+        let documents = try manager.url(
+            for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true
+        )
+        let backupFolder = documents.appendingPathComponent("PodBridge", isDirectory: true)
+        try manager.createDirectory(at: backupFolder, withIntermediateDirectories: true)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let backupURL = backupFolder.appendingPathComponent(
+            "iPod-Signature-ID-Backup_\(formatter.string(from: Date())).txt"
+        )
+        let contents = """
+        PodBridge iPod Signature ID backup
+
+        Signature ID: \(hex)
+
+        Keep this file. If automatic recovery is interrupted, enter the 16-digit ID above in PodBridge.
+        """
+        try contents.write(to: backupURL, atomically: true, encoding: .utf8)
+        let verifiedBackup = try String(contentsOf: backupURL, encoding: .utf8)
+        guard verifiedBackup.contains("Signature ID: \(hex)") else {
+            throw NSError(domain: "PodBridge.Diagnostics", code: 2, userInfo: [
+                NSLocalizedDescriptionKey: "The ID backup could not be verified, so the iPod was not changed."
+            ])
+        }
+
+        try ClassicDatabase.removeFirewireIDForTesting(at: destinationFolder, expectedID: id)
+        UserDefaults.standard.removeObject(
+            forKey: "PodBridge.signatureRecoveryCursor.\(destinationFolder.lastPathComponent)"
+        )
+        destinationNeedsFirewireID = true
+        signatureRecoveryProgress = nil
+        resultMessage = "Signature ID removed for testing. A verified backup is saved in Files → On My iPhone → PodBridgeALACarte → PodBridge."
+        return backupURL
+    }
+
+    func startLocalSignatureRecovery() {
+        guard let destinationFolder, destinationNeedsFirewireID, !isRecoveringSignatureID else { return }
+        let databaseURL = destinationFolder.appendingPathComponent("iPod_Control/iTunes/iTunesDB")
+        let cursorKey = "PodBridge.signatureRecoveryCursor.\(destinationFolder.lastPathComponent)"
+        let total = UInt64(UInt32.max) + 1
+        let savedCursor = UInt64(UserDefaults.standard.string(forKey: cursorKey) ?? "0") ?? 0
+        isRecoveringSignatureID = true
+        UIApplication.shared.isIdleTimerDisabled = true
+        errorMessage = nil
+        resultMessage = nil
+
+        signatureRecoveryTask = Task {
+            let access = destinationFolder.startAccessingSecurityScopedResource()
+            defer {
+                if access { destinationFolder.stopAccessingSecurityScopedResource() }
+                isRecoveringSignatureID = false
+                UIApplication.shared.isIdleTimerDisabled = false
+            }
+            do {
+                let context = try await Task.detached(priority: .userInitiated) {
+                    try Hash58.RecoveryContext(database: Data(contentsOf: databaseURL))
+                }.value
+                let metal = Hash58.MetalRecoveryEngine(context: context)
+                signatureRecoveryUsesMetal = metal != nil
+                var cursor = min(savedCursor, total)
+                let started = Date()
+                let initialCursor = cursor
+                let batchSize: UInt64 = metal == nil ? 4_096 : 262_144
+
+                while cursor < total, !Task.isCancelled {
+                    let count = min(batchSize, total - cursor)
+                    let found: Data?
+                    if let metal {
+                        found = try await metal.search(from: cursor, count: UInt32(count))
+                    } else {
+                        let batch = Task.detached(priority: .utility) {
+                            context.search(from: cursor, count: count)
+                        }
+                        found = await withTaskCancellationHandler {
+                            await batch.value
+                        } onCancel: {
+                            batch.cancel()
+                        }
+                    }
+                    if let found {
+                        UserDefaults.standard.removeObject(forKey: cursorKey)
+                        signatureRecoveryProgress = .init(
+                            tested: cursor + count, total: total,
+                            candidatesPerSecond: Double(cursor + count - initialCursor) / max(0.001, Date().timeIntervalSince(started))
+                        )
+                        storeFirewireIDAndRepair(found.map { String(format: "%02X", $0) }.joined())
+                        resultMessage = "Signature ID was recovered locally and saved to the iPod."
+                        return
+                    }
+                    cursor += count
+                    UserDefaults.standard.set(String(cursor), forKey: cursorKey)
+                    let elapsed = max(0.001, Date().timeIntervalSince(started))
+                    signatureRecoveryProgress = .init(
+                        tested: cursor, total: total,
+                        candidatesPerSecond: Double(cursor - initialCursor) / elapsed
+                    )
+                    await Task.yield()
+                }
+                if cursor >= total {
+                    UserDefaults.standard.removeObject(forKey: cursorKey)
+                    errorMessage = "No matching signature ID was found. The existing iTunesDB may not contain a valid device signature."
+                }
+            } catch is CancellationError {
+                // The cursor is saved after every completed batch so recovery can resume.
+            } catch {
+                errorMessage = "Local recovery could not start: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func stopLocalSignatureRecovery() {
+        signatureRecoveryTask?.cancel()
+        signatureRecoveryTask = nil
+    }
+
+    func enablePersistentDiskUse() {
+        guard let destinationFolder, destinationDiskUseStatus == .disabled, !isUpdatingDiskUse else { return }
+        isUpdatingDiskUse = true
+        resultMessage = nil
+        errorMessage = nil
+        Task {
+            await Task.yield()
+            defer { isUpdatingDiskUse = false }
+            do {
+                let backup = try await Task.detached(priority: .userInitiated) {
+                    let access = destinationFolder.startAccessingSecurityScopedResource()
+                    defer { if access { destinationFolder.stopAccessingSecurityScopedResource() } }
+                    return try IPodDiskUsePreferences.enable(at: destinationFolder)
+                }.value
+                destinationDiskUseStatus = .enabled
+                resultMessage = "Disk use is enabled for future connections. Original settings were backed up in \(backup.deletingLastPathComponent().lastPathComponent)."
+            } catch {
+                destinationDiskUseStatus = IPodDiskUsePreferences.status(at: destinationFolder)
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -514,6 +946,7 @@ final class MusicTransferViewModel: ObservableObject {
     }
 
     func startCopy() {
+        guard !isCopying, !isManagingLibrary, !isExporting, !isRestoring else { return }
         guard let sourceFolder else {
             errorMessage = PodBridgeError.noSourceFolder.localizedDescription
             return
@@ -530,7 +963,7 @@ final class MusicTransferViewModel: ObservableObject {
             errorMessage = PodBridgeError.noMusicFiles.localizedDescription
             return
         }
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod {
             startSimulatedCopy(trackCount: files.count)
             return
@@ -545,19 +978,27 @@ final class MusicTransferViewModel: ObservableObject {
         errorMessage = nil
         AppLogger.sync("Sync requested tracks=\(files.count) playlists=\(playlists.count) bytes=\(totalBytes)", level: .info)
 
-        copyTask = Task {
+        copyTask = Task { [self] in
+            let backgroundExecution = await TransferBackgroundExecution.shared.begin(total: files.count) { [weak self] in
+                self?.copyTask?.cancel()
+            }
             let sourceAccess = sourceFolder.startAccessingSecurityScopedResource()
             let destinationAccess = destinationFolder.startAccessingSecurityScopedResource()
+            var transferSucceeded = false
             defer {
                 if sourceAccess { sourceFolder.stopAccessingSecurityScopedResource() }
                 if destinationAccess { destinationFolder.stopAccessingSecurityScopedResource() }
+                backgroundExecution.finish(success: transferSucceeded)
                 isCopying = false
                 copyTask = nil
             }
 
             do {
                 let result = try await IPodSyncEngine.sync(files: files, playlists: playlists, root: destinationFolder) { count in
-                    await MainActor.run { self.copiedCount = count }
+                    await MainActor.run {
+                        self.copiedCount = count
+                        backgroundExecution.update(completed: count, total: self.files.count)
+                    }
                 }
                 existingTrackCount = result.total
                 let library = try IPodSyncEngine.library(root: destinationFolder)
@@ -570,6 +1011,7 @@ final class MusicTransferViewModel: ObservableObject {
                 let reused = result.exactDuplicatesReused + result.metadataDuplicatesReused
                 resultMessage = "Added \(result.added) tracks, reused \(reused) duplicates, added \(result.playlistsAdded) playlists, and \(result.coversAdded) covers. Backup: \(result.backupURL.lastPathComponent)."
                 completeTransfer(addedTracks: result.added, backupName: result.backupURL.lastPathComponent)
+                transferSucceeded = true
                 AppLogger.sync(
                     "Sync UI completed added=\(result.added) exactDuplicatesReused=\(result.exactDuplicatesReused) metadataDuplicatesReused=\(result.metadataDuplicatesReused) playlists=\(result.playlistsAdded) covers=\(result.coversAdded) total=\(result.total) backup=\(result.backupURL.lastPathComponent)",
                     level: .info
@@ -586,12 +1028,12 @@ final class MusicTransferViewModel: ObservableObject {
 
     func cancelCopy() {
         copyTask?.cancel()
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         simulationTask?.cancel()
 #endif
     }
 
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
     private func startSimulatedCopy(trackCount: Int) {
         simulationTask?.cancel()
         isCopying = true
@@ -612,7 +1054,7 @@ final class MusicTransferViewModel: ObservableObject {
                     self.copiedCount = min(index, trackCount)
                 }
                 self.existingTrackCount = (self.existingTrackCount ?? self.libraryTracks.count) + trackCount
-                self.resultMessage = "Added \(trackCount) tracks to the emulated iPod. No iTunesDB files were changed."
+                self.resultMessage = "Simulated a transfer of \(trackCount) tracks. No audio files or physical iPod data were changed."
                 self.completeTransfer(addedTracks: trackCount)
             } catch is CancellationError {
                 self.resultMessage = "Copy stopped after \(self.copiedCount) tracks."
@@ -657,7 +1099,7 @@ final class MusicTransferViewModel: ObservableObject {
 
 #if PODBRIDGE_ALACARTE
     func importFromALACarte(client: ALACarteClient, items selectedItems: [ALACarteLibraryItem]) {
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod {
             startSimulatedALACarteImport(selectedItems)
             return
@@ -671,7 +1113,7 @@ final class MusicTransferViewModel: ObservableObject {
             errorMessage = PodBridgeError.deviceModelRequired.localizedDescription
             return
         }
-        guard !destinationNeedsFirewireID, !isCopying, !selectedItems.isEmpty else { return }
+        guard !destinationNeedsFirewireID, !isCopying, !isManagingLibrary, !isExporting, !isRestoring, !selectedItems.isEmpty else { return }
 
         copyTask?.cancel()
         isCopying = true
@@ -869,7 +1311,7 @@ final class MusicTransferViewModel: ObservableObject {
     }
 
     func editTrackMetadata(_ track: ClassicTrack, update: ClassicDatabase.TrackMetadataUpdate) {
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod { emulateTrackMetadata(track.id, update: update); return }
 #endif
         guard let destinationFolder, !isManagingLibrary else { return }
@@ -896,7 +1338,7 @@ final class MusicTransferViewModel: ObservableObject {
     }
 
     func renamePlaylist(at index: Int, to name: String) {
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod, libraryPlaylists.indices.contains(index) {
             libraryPlaylists[index].name = name
             resultMessage = "Renamed demo playlist to \(name)."
@@ -927,7 +1369,7 @@ final class MusicTransferViewModel: ObservableObject {
     }
 
     func deletePlaylist(at index: Int, includingSongs: Bool) {
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod, libraryPlaylists.indices.contains(index) {
             let playlist = libraryPlaylists.remove(at: index)
             if includingSongs { emulateDeleteTracks(Set(playlist.trackIDs)) }
@@ -975,7 +1417,7 @@ final class MusicTransferViewModel: ObservableObject {
     }
 
     func replacePlaylistMembers(at index: Int, trackIDs: [UInt32]) {
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod, libraryPlaylists.indices.contains(index) {
             libraryPlaylists[index].trackIDs = trackIDs
             resultMessage = "Updated demo playlist with \(trackIDs.count) songs."
@@ -1014,15 +1456,17 @@ final class MusicTransferViewModel: ObservableObject {
     }
 
     private func deleteTracksPermanently(_ tracks: [ClassicTrack], description: String) {
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod {
             emulateDeleteTracks(Set(tracks.map(\.id)))
             resultMessage = "Deleted \(description) from the demo iPod."
             return
         }
 #endif
-        guard let destinationFolder, !isManagingLibrary, !tracks.isEmpty else { return }
+        guard let destinationFolder, !isManagingLibrary, !isExporting, !isCopying, !isRestoring, !tracks.isEmpty else { return }
         isManagingLibrary = true
+        deletionProgress = .init(stage: "Preparing the iPod library", completed: 0, total: 0)
+        deletionStartedAt = nil
         resultMessage = nil
         errorMessage = nil
         Task {
@@ -1030,12 +1474,19 @@ final class MusicTransferViewModel: ObservableObject {
             defer {
                 if access { destinationFolder.stopAccessingSecurityScopedResource() }
                 isManagingLibrary = false
+                deletionProgress = nil
+                deletionStartedAt = nil
             }
             do {
                 let result = try await IPodSyncEngine.deleteTracksPermanently(
                     ids: tracks.map(\.id),
                     root: destinationFolder
-                )
+                ) { progress in
+                    await MainActor.run {
+                        if progress.total > 0, self.deletionStartedAt == nil { self.deletionStartedAt = Date() }
+                        self.deletionProgress = progress
+                    }
+                }
                 let library = try IPodSyncEngine.library(root: destinationFolder)
                 existingTrackCount = result.remainingTracks
                 libraryTracks = library.tracks
@@ -1053,7 +1504,7 @@ final class MusicTransferViewModel: ObservableObject {
     }
 
     func editAlbumMetadata(_ album: IPodAlbum, update: IPodSyncEngine.AlbumMetadataUpdate) {
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod {
             emulateAlbumMetadata(Set(album.tracks.map(\.id)), update: update)
             resultMessage = "Updated demo album \(update.album)."
@@ -1101,7 +1552,7 @@ final class MusicTransferViewModel: ObservableObject {
         }
         if sourceAccess { imageURL.stopAccessingSecurityScopedResource() }
 
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod, libraryPlaylists.indices.contains(index) {
             emulateArtwork(Set(libraryPlaylists[index].trackIDs), artwork: artwork)
             resultMessage = "Updated artwork for demo playlist \(libraryPlaylists[index].name)."
@@ -1143,7 +1594,7 @@ final class MusicTransferViewModel: ObservableObject {
     }
 
     func setAlbumArtwork(_ album: IPodAlbum, artwork: Data) {
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod {
             emulateArtwork(Set(album.tracks.map(\.id)), artwork: artwork)
             resultMessage = "Updated artwork for demo album \(album.title)."
@@ -1184,7 +1635,7 @@ final class MusicTransferViewModel: ObservableObject {
     }
 
     func setTrackArtwork(_ track: ClassicTrack, artwork: Data) {
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod {
             emulateArtwork([track.id], artwork: artwork)
             resultMessage = "Updated artwork for demo song \(track.title)."
@@ -1219,7 +1670,7 @@ final class MusicTransferViewModel: ObservableObject {
     }
 
     func createPlaylist(name: String, trackIDs: [UInt32]) {
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod {
             libraryPlaylists.append(ClassicPlaylist(name: name, trackIDs: trackIDs))
             resultMessage = "Created demo playlist \(name) with \(trackIDs.count) songs."
@@ -1294,7 +1745,7 @@ final class MusicTransferViewModel: ObservableObject {
     }
 
     func replaceSongArtworkFromInternet(trackIDs: [UInt32], label: String) {
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod {
             emulateOnlineArtwork(trackIDs: Set(trackIDs), label: label, replaceExisting: true)
             return
@@ -1356,7 +1807,7 @@ final class MusicTransferViewModel: ObservableObject {
     }
 
     func findMissingArtwork() {
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod {
             emulateOnlineArtwork(
                 trackIDs: Set(libraryTracks.filter { $0.artworkImageID == 0 || $0.artworkData == nil }.map(\.id)),
@@ -1429,7 +1880,7 @@ final class MusicTransferViewModel: ObservableObject {
     }
 
     private func runSafeLibraryRepairs(includeArtwork: Bool) {
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
         if isEmulatingIPod {
             let groupsNeedingRepair = safeAlbumRepairCount
             let groups = Dictionary(grouping: libraryTracks.indices) { index in
@@ -1535,7 +1986,7 @@ final class MusicTransferViewModel: ObservableObject {
         artworkTask?.cancel()
     }
 
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
     private func emulateTrackMetadata(_ id: UInt32, update: ClassicDatabase.TrackMetadataUpdate) {
         guard let index = libraryTracks.firstIndex(where: { $0.id == id }) else { return }
         libraryTracks[index].title = update.title

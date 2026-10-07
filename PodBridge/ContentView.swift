@@ -4,6 +4,7 @@
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
+import ImageIO
 
 struct PodBridgeUnavailableView: View {
     let title: String
@@ -69,14 +70,19 @@ struct ContentView: View {
     @State private var showFiles = false
     @State private var showingDiagnostics = false
     @State private var showingSettings = false
+    @State private var openDiagnosticsAfterSettings = false
     @State private var confirmingRestore = false
     @State private var showingLibrary = false
     @State private var showingALACarte = false
+    @State private var showingRockboxTransfer = false
     @State private var showingTransferSuccess: TransferCompletion?
     @State private var showingTransferProgress = false
     @State private var showingSignatureIDPrompt = false
     @State private var showingSignatureIDHelp = false
+    @State private var showingSignatureRecovery = false
     @State private var showingConnectionGuide = false
+    @State private var showingDiskModeGuide = false
+    @AppStorage("PodBridge.skipConnectionOnboarding") private var skipConnectionOnboarding = false
     @State private var showingPreflight = false
     @State private var showingDeviceModelChooser = false
     @State private var signatureID = ""
@@ -88,20 +94,15 @@ struct ContentView: View {
         dialogContent
             .onChange(of: scenePhase) { _, phase in
                 AppLogger.app("Scene phase=\(String(describing: phase))", level: .info)
-                if phase != .active { PersistentLogStore.shared.flush() }
+                if phase != .active {
+                    PersistentLogStore.shared.flush()
+                    model.stopLocalSignatureRecovery()
+                }
             }
             .onChange(of: model.transferCompletion?.id) {
                 guard !showingALACarte else { return }
                 guard let completion = model.transferCompletion else { return }
                 showingTransferSuccess = completion
-            }
-            .onChange(of: model.destinationNeedsFirewireID) { _, needsID in
-                guard needsID else { return }
-                signatureID = ""
-                Task { @MainActor in
-                    await Task.yield()
-                    showingSignatureIDPrompt = true
-                }
             }
             .onChange(of: model.shouldChooseDeviceProfile) { _, shouldShow in
                 guard shouldShow else { return }
@@ -190,26 +191,35 @@ struct ContentView: View {
             .frame(width: 0, height: 0)
         }
         .sheet(isPresented: $showingDiagnostics) {
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
             DiagnosticsDrawerView(
                 isEmulatingIPod: model.isEmulatingIPod,
-                emulateIPod: { model.emulateConnectedIPod() }
+                emulateIPod: { model.emulateConnectedIPod($0) },
+                disconnectEmulatedIPod: { model.disconnectDestination() },
+                canRemoveSignatureID: model.destinationFolder != nil && !model.destinationNeedsFirewireID,
+                removeSignatureID: { try model.removeSignatureIDForRecoveryTest() }
             )
 #else
-            DiagnosticsDrawerView()
+            DiagnosticsDrawerView(
+                canRemoveSignatureID: model.destinationFolder != nil && !model.destinationNeedsFirewireID,
+                removeSignatureID: { try model.removeSignatureIDForRecoveryTest() }
+            )
 #endif
         }
-        .sheet(isPresented: $showingSettings) {
+        .sheet(isPresented: $showingSettings, onDismiss: {
+            guard openDiagnosticsAfterSettings else { return }
+            openDiagnosticsAfterSettings = false
+            openDiagnostics(source: "settings")
+        }) {
             PodBridgeSettingsView {
-                showingSettings = false
-                Task { @MainActor in
-                    await Task.yield()
-                    openDiagnostics(source: "settings")
-                }
+                openDiagnosticsAfterSettings = true
             }
         }
         .sheet(isPresented: $showingLibrary) {
             PodBridgeLibraryView(model: model)
+        }
+        .sheet(isPresented: $showingRockboxTransfer) {
+            RockboxTransferView(model: model)
         }
         .sheet(isPresented: $showingImportReview) {
             ImportReviewView(model: model) {
@@ -248,8 +258,41 @@ struct ContentView: View {
         .sheet(isPresented: $showingSignatureIDHelp) {
             SignatureIDHelpView()
         }
+        .sheet(isPresented: $showingSignatureRecovery) {
+            SignatureRecoveryView(
+                model: model,
+                enterManually: {
+                    showingSignatureRecovery = false
+                    Task { @MainActor in
+                        await Task.yield()
+                        signatureID = ""
+                        showingSignatureIDPrompt = true
+                    }
+                },
+                showComputerHelp: {
+                    showingSignatureRecovery = false
+                    Task { @MainActor in
+                        await Task.yield()
+                        showingSignatureIDHelp = true
+                    }
+                }
+            )
+        }
         .sheet(isPresented: $showingConnectionGuide) {
-            ConnectionGuideView()
+            ConnectionGuideView {
+                Task { @MainActor in
+                    await Task.yield()
+                    chooseFolder(.destination)
+                }
+            }
+        }
+        .sheet(isPresented: $showingDiskModeGuide) {
+            DiskModeGuideView {
+                Task { @MainActor in
+                    await Task.yield()
+                    chooseFolder(.destination)
+                }
+            }
         }
     }
 
@@ -338,7 +381,7 @@ struct ContentView: View {
     private var disconnectedHome: some View {
         VStack(spacing: 0) {
             Button {
-                chooseFolder(.destination)
+                connectToIPod()
             } label: {
                 VStack(spacing: 0) {
                     PodBridgeIPodClassicArtwork(showsCable: true)
@@ -349,7 +392,7 @@ struct ContentView: View {
                             Text("Connect your iPod")
                                 .font(.title3.bold())
                                 .foregroundStyle(.primary)
-                            Text("Choose your connected iPod in Files")
+                            Text(connectionLocationText)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -370,7 +413,7 @@ struct ContentView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Connect your iPod")
-            .accessibilityHint("Opens Files to choose the connected iPod")
+            .accessibilityHint(connectionAccessibilityHint)
             .padding(.top, 10)
 
             VStack(alignment: .leading, spacing: 8) {
@@ -378,6 +421,8 @@ struct ContentView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button("Learn how to connect") { showingConnectionGuide = true }
+                    .font(.caption.weight(.semibold))
+                Button("iPod doesn’t appear in Files?") { showingDiskModeGuide = true }
                     .font(.caption.weight(.semibold))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -399,10 +444,30 @@ struct ContentView: View {
             deviceCard
                 .padding(.top, 8)
 
+#if DEBUG || PODBRIDGE_DEMO
+            if model.isEmulatingIPod {
+                HStack {
+                    Label("Demo mode · no physical iPod is changed", systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    Button("Exit Demo") { model.disconnectDestination() }
+                        .font(.caption.weight(.semibold))
+                        .disabled(model.isCopying || model.isManagingLibrary || model.isRestoring)
+                }
+                .padding(.horizontal, 4)
+            }
+#endif
+
             homeAction(title: "Add Music", subtitle: addMusicSubtitle, icon: "music.note", tint: .blue) {
                 chooseFolder(.source)
             }
             .disabled(model.destinationDeviceProfile == nil || model.destinationNeedsFirewireID || model.isCopying)
+
+            homeAction(title: "Rockbox Files", subtitle: "Copy music to a folder or install a theme", icon: "folder.badge.plus", tint: .orange) {
+                showingRockboxTransfer = true
+            }
+            .disabled(model.isCopying || model.isManagingLibrary || model.isRestoring)
 
 #if PODBRIDGE_ALACARTE
             homeAction(title: "ALACarte", subtitle: "Import music from your server", icon: "music.note", tint: .pink) {
@@ -420,6 +485,10 @@ struct ContentView: View {
                 setupCard
             } else if model.destinationNeedsFirewireID {
                 signatureCard
+            }
+
+            if model.destinationDiskUseStatus == .disabled {
+                diskUseCard
             }
 
             if !model.files.isEmpty && !model.isCopying {
@@ -447,9 +516,9 @@ struct ContentView: View {
                     .lineLimit(1)
                 HStack(spacing: 6) {
                     Text(model.destinationDeviceProfile?.shortTitle ?? "iPod detected")
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
                     if model.isEmulatingIPod {
-                        Text("EMULATED")
+                        Text("DEMO")
                             .font(.system(size: 9, weight: .bold))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 3)
@@ -534,19 +603,47 @@ struct ContentView: View {
     }
 
     private var signatureCard: some View {
+#if targetEnvironment(macCatalyst)
+        EmptyView()
+#else
         VStack(alignment: .leading, spacing: 10) {
             Label("Signature ID required", systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
                 .foregroundStyle(.orange)
-            Text("PodBridge needs this iPod’s signature ID before changing the music library.")
+            Text("PodBridge checked the available Device files but could not find this iPod’s 16-digit signing ID. iOS does not expose the USB serial number, so it must be entered once.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Button("Set Signature ID") { showingSignatureIDPrompt = true }
+            Button("Recover Signature ID") { showingSignatureRecovery = true }
                 .buttonStyle(.borderedProminent)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 18))
+#endif
+    }
+
+    private var diskUseCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Make future connections easier", systemImage: "externaldrive.badge.checkmark")
+                .font(.headline)
+            Text("This iPod’s disk-use setting is off. PodBridge can enable it so you usually won’t need Disk Mode next time. A copy of the original settings is saved first.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button {
+                model.enablePersistentDiskUse()
+            } label: {
+                if model.isUpdatingDiskUse {
+                    ProgressView().frame(maxWidth: .infinity)
+                } else {
+                    Text("Enable Disk Use").frame(maxWidth: .infinity)
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(model.isUpdatingDiskUse || model.isCopying)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.blue.opacity(0.10), in: RoundedRectangle(cornerRadius: 18))
     }
 
     private var readyToTransferCard: some View {
@@ -586,7 +683,7 @@ struct ContentView: View {
             Text("\(model.copiedCount) of \(model.files.count) songs")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Label("Keep PodBridge open and your iPod connected until the transfer finishes.", systemImage: "info.circle.fill")
+            Label("Keep the iPod connected. PodBridge keeps the screen awake and requests background time if you lock it.", systemImage: "info.circle.fill")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Button("Stop", role: .destructive) { model.cancelCopy() }
@@ -628,7 +725,27 @@ struct ContentView: View {
     }
 
     private var addMusicSubtitle: String {
+#if targetEnvironment(macCatalyst)
+        "Choose a music folder on your Mac"
+#else
         "Choose a music folder in Files"
+#endif
+    }
+
+    private var connectionLocationText: String {
+#if targetEnvironment(macCatalyst)
+        "Choose your mounted iPod in Finder"
+#else
+        "Choose your connected iPod in Files"
+#endif
+    }
+
+    private var connectionAccessibilityHint: String {
+#if targetEnvironment(macCatalyst)
+        "Opens the folder picker to choose the mounted iPod"
+#else
+        "Opens Files to choose the connected iPod"
+#endif
     }
 
     private var librarySubtitle: String {
@@ -639,7 +756,7 @@ struct ContentView: View {
     private var safetyNotice: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label {
-                Text("PodBridge changes only the music library, never firmware. Keep the app open and do not disconnect the iPod until sync completes.")
+                Text("PodBridge changes only the music library, never firmware. Do not disconnect the iPod until sync completes.")
             } icon: {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
@@ -974,7 +1091,6 @@ struct ContentView: View {
             AppLogger.ui("Folder selected kind=\(destination ? "destination" : "source")", level: .info)
             if destination {
                 model.selectDestination(url)
-                if model.destinationFolder != nil { showingDeviceModelChooser = true }
             }
             else { model.selectSource(url) }
         case let .failure(error):
@@ -989,6 +1105,14 @@ struct ContentView: View {
         choosingFolder = true
     }
 
+    private func connectToIPod() {
+        if skipConnectionOnboarding {
+            chooseFolder(.destination)
+        } else {
+            showingConnectionGuide = true
+        }
+    }
+
     private func openDiagnostics(source: String) {
         AppLogger.ui("Diagnostics opened source=\(source)", level: .info)
         showingDiagnostics = true
@@ -999,33 +1123,332 @@ struct ContentView: View {
     }
 }
 
-private struct ConnectionGuideView: View {
+private struct RockboxTransferView: View {
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject var model: MusicTransferViewModel
+    @State private var musicSource: URL?
+    @State private var musicDestination: URL?
+    @State private var themeSource: URL?
+    @State private var choosingMusicSource = false
+    @State private var choosingMusicDestination = false
+    @State private var choosingTheme = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
-                Section("Connect the devices") {
-                    Label("USB-C iPhone or iPad: connect the iPod with a data-capable USB-C to 30-pin cable or a USB-C USB adapter and the iPod cable.", systemImage: "cable.connector")
-                    Label("Lightning iPhone: use a Lightning to USB adapter and the iPod cable. A powered adapter may be needed if the iPod draws too much power.", systemImage: "bolt")
+                Section {
+                    Text("Rockbox reads music directly from the iPod filesystem. Choose any folder inside the iPod volume, such as Music, and PodBridge will copy files there without changing the Apple music database.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-                Section("Check in Files first") {
-                    Text("Unlock the iPhone or iPad, open Files → Browse, and check that the iPod appears under Locations. If it does not, try another data cable or adapter and reconnect the iPod.")
-                    Text("In PodBridge, choose the root folder of the iPod, then select its exact model. Start with one song and keep both devices connected until the transfer finishes.")
+
+                Section("Music") {
+                    pickerRow(
+                        title: "Music source",
+                        value: musicSource?.lastPathComponent ?? "Choose a folder in Files"
+                    ) { choosingMusicSource = true }
+                    pickerRow(
+                        title: "iPod destination",
+                        value: musicDestination?.lastPathComponent ?? "Choose a folder inside this iPod"
+                    ) { choosingMusicDestination = true }
+                    if model.isRockboxCopying {
+                        ProgressView(value: progress)
+                        Text("Copied \(model.rockboxCopiedCount) files")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button("Stop copying", role: .destructive) { model.cancelRockboxCopy() }
+                    } else {
+                        Button("Copy Music for Rockbox") {
+                            guard let musicSource, let musicDestination else { return }
+                            model.copyMusicForRockbox(from: musicSource, to: musicDestination)
+                        }
+                        .disabled(musicSource == nil || musicDestination == nil)
+                    }
                 }
-                Section("Important") {
-                    Text("After PodBridge manages the library, avoid syncing the same iPod with Finder, Music or iTunes. Make a full backup before a large transfer.")
+
+                Section("Theme") {
+                    Text("Choose a theme file or a folder from your iPhone. Its contents are copied to the hidden .rockbox/themes folder on the iPod.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    pickerRow(
+                        title: "Theme from Files",
+                        value: themeSource?.lastPathComponent ?? "Choose theme file or folder"
+                    ) { choosingTheme = true }
+                    Button("Install Rockbox Theme") {
+                        guard let themeSource else { return }
+                        model.installRockboxTheme(from: themeSource)
+                    }
+                    .disabled(themeSource == nil || model.isRockboxCopying)
+                }
+
+                if let message = model.resultMessage {
+                    Section {
+                        Label(message, systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
                 }
             }
-            .navigationTitle("Connect your iPod")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Rockbox")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }
+            .fileImporter(isPresented: $choosingMusicSource, allowedContentTypes: [.folder]) { result in
+                if case let .success(url) = result { musicSource = url }
+            }
+            .fileImporter(isPresented: $choosingMusicDestination, allowedContentTypes: [.folder]) { result in
+                if case let .success(url) = result { musicDestination = url }
+            }
+            .fileImporter(isPresented: $choosingTheme, allowedContentTypes: [.item]) { result in
+                if case let .success(url) = result { themeSource = url }
+            }
         }
     }
+
+    private var progress: Double {
+        guard model.rockboxTotalCount > 0 else { return 0 }
+        return min(1, Double(model.rockboxCopiedCount) / Double(model.rockboxTotalCount))
+    }
+
+    private func pickerRow(title: String, value: String, action: @escaping () -> Void) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                Text(value).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer()
+            Button("Choose", action: action)
+        }
+    }
+}
+
+private struct ConnectionGuideView: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("PodBridge.skipConnectionOnboarding") private var skipConnectionOnboarding = false
+    @State private var page = 0
+
+    let onContinue: () -> Void
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 12) {
+                TabView(selection: $page) {
+                    prepareIPodPage.tag(0)
+                    connectIPodPage.tag(1)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .always))
+
+                Toggle("Don’t show this again", isOn: $skipConnectionOnboarding)
+                    .font(.footnote)
+                    .padding(.horizontal, 22)
+
+                Button {
+                    dismiss()
+                    onContinue()
+                } label: {
+                    Text(page == 0 ? "Choose iPod in Files" : "I’m in Disk Mode — Choose iPod")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.horizontal, 22)
+                if page == 0 {
+                    Button("iPod doesn’t appear? Use Disk Mode") {
+                        withAnimation { page = 1 }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.bottom, 12)
+                }
+            }
+            .navigationTitle("Get started")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private var prepareIPodPage: some View {
+        guidePage(title: "Connect directly", symbol: "cable.connector") {
+#if targetEnvironment(macCatalyst)
+            guideStep("Connect the iPod with a data-capable USB cable.")
+            guideStep("Wait for it to appear in Finder under Locations.")
+#else
+            guideStep("Connect the iPod directly to your iPhone or iPad with a data-capable cable or adapter.")
+            guideStep("Unlock the iPhone, open Files → Browse, and look under Locations.")
+#endif
+            guideStep("Choose the iPod’s top-level folder—the one containing iPod_Control.")
+            Label("No computer, jailbreak or extra bridge device is required.", systemImage: "iphone")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var connectIPodPage: some View {
+        guidePage(title: "If it doesn’t appear", symbol: "arrow.clockwise") {
+            DiskModeInstructions(compact: true)
+        }
+    }
+
+    private var transferPage: some View {
+        guidePage(title: "Add music safely", symbol: "music.note.list") {
+            guideStep("Choose a folder with your music, review the detected tracks and playlists, and select the exact iPod model.")
+            guideStep("Start with one track. Keep the iPod connected until PodBridge confirms completion, then eject it in Finder when available.")
+            Label("After PodBridge changes the library, do not sync this iPod with Finder, Music, or iTunes. Their sync can replace the PodBridge changes.", systemImage: "exclamationmark.triangle.fill")
+                .font(.subheadline)
+                .foregroundStyle(.orange)
+            Text("PodBridge backs up and verifies the music database before changing it. Only iPod Classic 160 GB (late 2009 / 7th generation) has been tested on real hardware for this release.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func guidePage<Content: View>(
+        title: String,
+        symbol: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Image(systemName: symbol)
+                    .font(.system(size: 34, weight: .medium))
+                    .foregroundStyle(.tint)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 18)
+                Text(title)
+                    .font(.title2.bold())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                content()
+            }
+            .padding(.horizontal, 22)
+            .padding(.bottom, 18)
+        }
+    }
+
+    private func guideStep(_ text: String) -> some View {
+        Label(text, systemImage: "checkmark.circle")
+            .font(.subheadline)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct DiskModeGuideView: View {
+    @Environment(\.dismiss) private var dismiss
+    let onChooseIPod: () -> Void
+
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                DiskModeInstructions(compact: false)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 24)
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    dismiss()
+                    onChooseIPod()
+                } label: {
+                    Text("Open Files and Choose iPod")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(.bar)
+            }
+            .navigationTitle("Make iPod appear")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color(.systemBackground), for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct DiskModeInstructions: View {
+    let compact: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            AnimatedAssetImage(name: "DiskModeTutorial")
+                .frame(maxWidth: .infinity)
+                .frame(height: compact ? 280 : 390)
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .accessibilityHidden(true)
+
+            instruction(1, "Disconnect the iPod from the iPhone.")
+            instruction(2, "Hold Menu + Center for about 6 seconds.")
+            instruction(3, "When the Apple logo appears, immediately hold Center + Play/Pause.")
+            instruction(4, "Wait for Disk Mode, reconnect the cable, then choose the iPod in Files.")
+
+            Label("If iPhone reports that the accessory uses too much power, use a powered USB adapter. The cable must support data, not charging only.", systemImage: "bolt.trianglebadge.exclamationmark")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func instruction(_ number: Int, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text("\(number)")
+                .font(.caption.bold())
+                .foregroundStyle(.white)
+                .frame(width: 24, height: 24)
+                .background(Color.accentColor, in: Circle())
+            Text(text)
+                .font(.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+private struct AnimatedAssetImage: UIViewRepresentable {
+    let name: String
+
+    func makeUIView(context: Context) -> UIImageView {
+        let view = NonIntrinsicImageView()
+        view.contentMode = .scaleAspectFit
+        view.clipsToBounds = true
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        view.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        view.image = Self.animatedImage(named: name)
+        return view
+    }
+
+    func updateUIView(_ uiView: UIImageView, context: Context) {}
+
+    private static func animatedImage(named name: String) -> UIImage? {
+        guard let data = NSDataAsset(name: name)?.data,
+              let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        var images: [UIImage] = []
+        var duration = 0.0
+        for index in 0..<CGImageSourceGetCount(source) {
+            guard let cgImage = CGImageSourceCreateImageAtIndex(source, index, nil) else { continue }
+            images.append(UIImage(cgImage: cgImage))
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any]
+            let gif = properties?[kCGImagePropertyGIFDictionary] as? [CFString: Any]
+            duration += (gif?[kCGImagePropertyGIFUnclampedDelayTime] as? Double)
+                ?? (gif?[kCGImagePropertyGIFDelayTime] as? Double)
+                ?? 0.1
+        }
+        guard !images.isEmpty else { return nil }
+        return UIImage.animatedImage(with: images, duration: max(duration, 0.1))
+    }
+}
+
+private final class NonIntrinsicImageView: UIImageView {
+    override var intrinsicContentSize: CGSize { .zero }
 }
 
 private struct TransferPreflightView: View {
@@ -1085,6 +1508,150 @@ private struct TransferPreflightView: View {
     }
 }
 
+private struct SignatureRecoveryView: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var model: MusicTransferViewModel
+    let enterManually: () -> Void
+    let showComputerHelp: () -> Void
+
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("PodBridge could not find the signing ID in the readable iPod files. Choose how you want to recover it.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    recoveryCard(
+                        title: "Use a computer",
+                        subtitle: "Fastest · usually under a minute",
+                        symbol: "laptopcomputer",
+                        tint: .blue
+                    ) {
+                        Text("Read the USB serial number on a Mac, Windows PC or Linux computer, then enter its 16 hexadecimal digits once.")
+                            .font(.subheadline)
+                        HStack {
+                            Button("Show Instructions", action: showComputerHelp)
+                                .buttonStyle(.borderedProminent)
+                            Button("Enter ID", action: enterManually)
+                                .buttonStyle(.bordered)
+                        }
+                    }
+
+                    recoveryCard(
+                        title: "Recover on this iPhone",
+                        subtitle: "No computer · may take many hours",
+                        symbol: "iphone.gen3.radiowaves.left.and.right",
+                        tint: .orange
+                    ) {
+                        Text("PodBridge will use brute force: it will try possible IDs one by one and check each one against the signature in the existing iTunesDB. Everything happens on this iPhone and nothing is uploaded.")
+                            .font(.subheadline)
+
+                        if let progress = model.signatureRecoveryProgress {
+                            ProgressView(value: progress.fraction)
+                            HStack {
+                                Text("\(progress.tested.formatted()) of \(progress.total.formatted())")
+                                Spacer()
+                                Text("\(Int(progress.candidatesPerSecond).formatted())/sec")
+                            }
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            if let seconds = progress.remainingSeconds {
+                                Text("Estimated remaining time: \(durationText(seconds))")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+
+                        if model.isRecoveringSignatureID {
+                            Label(
+                                model.signatureRecoveryUsesMetal ? "Metal GPU acceleration active" : "CPU compatibility mode",
+                                systemImage: model.signatureRecoveryUsesMetal ? "gpu" : "cpu"
+                            )
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(model.signatureRecoveryUsesMetal ? .green : .secondary)
+                        }
+
+                        if model.isRecoveringSignatureID {
+                            Button(role: .destructive) {
+                                model.stopLocalSignatureRecovery()
+                            } label: {
+                                Label("Pause", systemImage: "pause.fill")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        } else {
+                            Button {
+                                model.startLocalSignatureRecovery()
+                            } label: {
+                                Label(
+                                    model.signatureRecoveryProgress == nil ? "Start Local Recovery" : "Continue Local Recovery",
+                                    systemImage: "bolt.fill"
+                                )
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.orange)
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label("Brute-force recovery can take many hours. The fastest option is still using a computer.", systemImage: "clock.badge.exclamationmark")
+                                .foregroundStyle(.orange)
+                            Label("For an overnight run, connect the iPhone to power and leave PodBridge open on this screen. The display will stay on.", systemImage: "moon.stars.fill")
+                            Label("Recovery pauses when you lock the iPhone or switch apps, then continues from the saved position.", systemImage: "pause.circle")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(20)
+            }
+            .navigationTitle("Recover signature ID")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .onChange(of: model.destinationNeedsFirewireID) { _, needsID in
+                if !needsID { dismiss() }
+            }
+        }
+    }
+
+    private func recoveryCard<Content: View>(
+        title: String,
+        subtitle: String,
+        symbol: String,
+        tint: Color,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: symbol)
+                    .font(.title2)
+                    .foregroundStyle(tint)
+                    .frame(width: 34)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.headline)
+                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            content()
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func durationText(_ seconds: TimeInterval) -> String {
+        let minutes = seconds / 60
+        let hours = minutes / 60
+        if hours >= 1 { return String(format: "%.1f hours", hours) }
+        return "\(max(1, Int(minutes.rounded(.up)))) minutes"
+    }
+}
+
 private struct SignatureIDHelpView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -1096,7 +1663,7 @@ private struct SignatureIDHelpView: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text("PodBridge already checked SysInfo and SysInfoExtended. iOS lets the app read the iPod’s files, but not the USB serial number required to sign iTunesDB.")
+                    Text("PodBridge already checked SysInfo, SysInfoExtended, ExtendedSysInfoXml and the other readable Device metadata. iOS lets the app read the iPod’s files, but not the USB serial number required to sign iTunesDB.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
@@ -1476,6 +2043,7 @@ private struct AlbumDetailView: View {
         Group {
             if let album {
                 List {
+                    PodBridgeOperationProgressView(model: model)
                     Section {
                         VStack(alignment: .leading, spacing: 5) {
                             Text(album.title).font(.title3.weight(.semibold))
@@ -1507,10 +2075,11 @@ private struct AlbumDetailView: View {
                             )
                         }
                         .disabled(model.isManagingLibrary)
+                        PodBridgeExportButton(model: model, tracks: album.tracks, title: "Copy album to Files")
                         Button("Delete album", systemImage: "trash", role: .destructive) {
                             confirmingAlbumDeletion = true
                         }
-                        .disabled(model.isManagingLibrary)
+                        .disabled(model.isManagingLibrary || model.isExporting || model.isCopying || model.isRestoring)
                     }
                     Section("Songs") {
                         ForEach(album.tracks) { track in
@@ -2096,6 +2665,7 @@ private struct PodBridgeIPodDeviceArtwork: View {
 
     private var assetName: String {
         switch profile {
+        case .mini1And2: "IPodNano12"
         case .classic7: "IPodClassic7"
         case .classic6: "IPodClassic6"
         case .video5: "IPodVideo5"
@@ -2118,6 +2688,7 @@ private struct PodBridgeLoadingOverlay: View {
     let title: String
     let detail: String?
     var cancel: (() -> Void)? = nil
+    var progress: Double? = nil
 
     var body: some View {
         ZStack {
@@ -2127,6 +2698,10 @@ private struct PodBridgeLoadingOverlay: View {
                     .progressViewStyle(.circular)
                     .scaleEffect(1.18)
                 Text(title).font(.headline).multilineTextAlignment(.center)
+                if let progress {
+                    ProgressView(value: progress)
+                        .frame(maxWidth: 240)
+                }
                 if let detail {
                     Text(detail)
                         .font(.caption)
@@ -2309,6 +2884,7 @@ private struct PodBridgeLibraryView: View {
     @State private var searchText = ""
     @State private var section = 0
     @State private var showingPlaylistComposer = false
+    @State private var confirmingLibraryClear = false
 
     private var tracks: [ClassicTrack] {
         model.libraryTracks.filter {
@@ -2402,6 +2978,28 @@ private struct PodBridgeLibraryView: View {
                         .padding(14).background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }.buttonStyle(.plain)
 
+                    if !model.libraryTracks.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Move music from this iPod").font(.headline)
+                            PodBridgeExportButton(
+                                model: model,
+                                tracks: model.libraryTracks,
+                                title: "Copy entire library to Files"
+                            )
+                            Button("Erase all music from iPod", systemImage: "trash", role: .destructive) {
+                                confirmingLibraryClear = true
+                            }
+                            .disabled(model.isManagingLibrary || model.isExporting || model.isCopying || model.isRestoring)
+                            Text("Copying keeps the iPod unchanged. Erasing removes every song and playlist without an audio backup.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+                    }
+
+                    PodBridgeOperationProgressView(model: model)
                     libraryContent
                 }
                 .padding(16)
@@ -2417,18 +3015,37 @@ private struct PodBridgeLibraryView: View {
                 model.createPlaylist(name: name, trackIDs: trackIDs)
             }
         }
+        .confirmationDialog("Erase the entire iPod music library?", isPresented: $confirmingLibraryClear, titleVisibility: .visible) {
+            Button("Erase \(model.libraryTracks.count) songs and all playlists", role: .destructive) {
+                model.clearLibraryPermanently()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently removes approximately \(ByteCountFormatter.string(fromByteCount: Int64(model.libraryTracks.reduce(0) { $0 + UInt64($1.byteCount) }), countStyle: .file)) of audio. Copy the library to Files first if you want to keep it.")
+        }
         .overlay {
-            if model.isManagingLibrary {
+            if model.isExporting {
+                PodBridgeLoadingOverlay(
+                    title: "Copying music to Files…",
+                    detail: "\(model.exportedCount) of \(model.exportTotalCount) songs" + (model.operationETA.map { " · \($0)" } ?? ""),
+                    progress: Double(model.exportedCount) / Double(max(1, model.exportTotalCount))
+                )
+            } else if model.isManagingLibrary {
                 PodBridgeLoadingOverlay(
                     title: model.artworkSearchProgress == nil ? "Updating iPod Library…" : "Finding Artwork…",
                     detail: libraryActivityDetail,
-                    cancel: model.artworkSearchProgress == nil ? nil : { model.cancelArtworkSearch() }
+                    cancel: model.artworkSearchProgress == nil ? nil : { model.cancelArtworkSearch() },
+                    progress: model.deletionProgress.flatMap { $0.total > 0 ? Double($0.completed) / Double($0.total) : nil }
                 )
             }
         }
     }
 
     private var libraryActivityDetail: String? {
+        if let progress = model.deletionProgress {
+            let count = progress.total > 0 ? " · \(progress.completed) of \(progress.total)" : ""
+            return progress.stage + count + (model.operationETA.map { " · \($0)" } ?? "")
+        }
         guard let progress = model.artworkSearchProgress else {
             return "Verifying changes and keeping the database consistent"
         }
@@ -2540,6 +3157,52 @@ private struct PodBridgeLibraryView: View {
     }
 }
 
+private struct PodBridgeOperationProgressView: View {
+    @ObservedObject var model: MusicTransferViewModel
+
+    var body: some View {
+        if model.isExporting {
+            VStack(alignment: .leading, spacing: 5) {
+                ProgressView(value: Double(model.exportedCount), total: Double(max(1, model.exportTotalCount)))
+                Text("Copying \(model.exportedCount) of \(model.exportTotalCount) songs to Files" + (model.operationETA.map { " · \($0)" } ?? ""))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        } else if let progress = model.deletionProgress {
+            VStack(alignment: .leading, spacing: 5) {
+                if progress.total > 0 {
+                    ProgressView(value: Double(progress.completed), total: Double(progress.total))
+                } else {
+                    ProgressView()
+                }
+                Text(progress.stage + (progress.total > 0 ? " · \(progress.completed) of \(progress.total)" : "") + (model.operationETA.map { " · \($0)" } ?? ""))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        } else if let message = model.resultMessage {
+            Text(message).font(.footnote).foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct PodBridgeExportButton: View {
+    @ObservedObject var model: MusicTransferViewModel
+    let tracks: [ClassicTrack]
+    let title: String
+    @State private var choosingFolder = false
+
+    var body: some View {
+        Button(title, systemImage: "square.and.arrow.up") { choosingFolder = true }
+            .disabled(tracks.isEmpty || model.isExporting || model.isManagingLibrary || model.isCopying || model.isRestoring)
+            .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
+                switch result {
+                case .success(let folder):
+                    model.exportTracks(tracks, to: folder)
+                case .failure(let error):
+                    model.errorMessage = error.localizedDescription
+                }
+            }
+    }
+}
+
 private struct TrackDetailView: View {
     @ObservedObject var model: MusicTransferViewModel
     let trackID: UInt32
@@ -2554,6 +3217,7 @@ private struct TrackDetailView: View {
         Group {
             if let track {
                 List {
+                    PodBridgeOperationProgressView(model: model)
                     Section {
                         HStack(spacing: 16) {
                             PodBridgeArtworkView(data: track.artworkData, symbol: "music.note")
@@ -2585,7 +3249,9 @@ private struct TrackDetailView: View {
                         }
                     }
                     Section {
+                        PodBridgeExportButton(model: model, tracks: [track], title: "Copy song to Files")
                         Button("Delete from iPod", systemImage: "trash", role: .destructive) { confirmingDeletion = true }
+                            .disabled(model.isManagingLibrary || model.isExporting || model.isCopying || model.isRestoring)
                     }
                 }
                 .navigationTitle("Song")
@@ -2637,8 +3303,12 @@ private struct TrackDetailView: View {
 }
 
 private struct ArtistDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     @ObservedObject var model: MusicTransferViewModel
     let artist: String
+    @State private var confirmingDeletion = false
+
+    private var tracks: [ClassicTrack] { model.libraryTracks.filter { $0.artist == artist } }
 
     private var albums: [IPodAlbum] {
         model.libraryAlbums.filter { $0.artist == artist || $0.tracks.contains(where: { $0.artist == artist }) }
@@ -2646,9 +3316,15 @@ private struct ArtistDetailView: View {
 
     var body: some View {
         List {
+            PodBridgeOperationProgressView(model: model)
             Section {
                 Text("\(albums.count) \(albums.count == 1 ? "album" : "albums") · \(model.libraryTracks.filter { $0.artist == artist }.count) songs")
                     .foregroundStyle(.secondary)
+                PodBridgeExportButton(model: model, tracks: tracks, title: "Copy artist to Files")
+                Button("Delete artist from iPod", systemImage: "trash", role: .destructive) {
+                    confirmingDeletion = true
+                }
+                .disabled(tracks.isEmpty || model.isManagingLibrary || model.isExporting || model.isCopying || model.isRestoring)
             }
             Section("Albums") {
                 ForEach(albums) { album in
@@ -2667,6 +3343,15 @@ private struct ArtistDetailView: View {
         }
         .navigationTitle(artist)
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Permanently delete this artist?", isPresented: $confirmingDeletion, titleVisibility: .visible) {
+            Button("Delete \(tracks.count) songs", role: .destructive) {
+                model.deleteArtistPermanently(artist)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Only songs credited to \(artist) will be removed. This cannot be undone.")
+        }
     }
 }
 
@@ -2894,6 +3579,7 @@ private struct PlaylistArtworkView: View {
 
 private struct PodBridgeLibraryToolsView: View {
     @ObservedObject var model: MusicTransferViewModel
+    @State private var choosingLibraryJSON = false
 
     var body: some View {
         ScrollView {
@@ -2911,6 +3597,10 @@ private struct PodBridgeLibraryToolsView: View {
                 NavigationLink { MetadataIssuesView(model: model) } label: {
                     tool("Fix Metadata", "Review incomplete artist, album and genre fields", "tag.fill", .purple)
                 }
+                Button { choosingLibraryJSON = true } label: {
+                    tool("Restore PodBridge Export", "Import ratings, play counts, skips, dates and playlists from JSON", "arrow.uturn.backward.circle", .orange)
+                }
+                .disabled(model.isManagingLibrary || model.isExporting || model.isCopying || model.isRestoring)
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
@@ -2919,6 +3609,19 @@ private struct PodBridgeLibraryToolsView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Library Tools")
         .navigationBarTitleDisplayMode(.inline)
+        .fileImporter(
+            isPresented: $choosingLibraryJSON,
+            allowedContentTypes: [.json],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                model.importLibraryJSON(url)
+            case .failure(let error):
+                model.errorMessage = error.localizedDescription
+            }
+        }
     }
 
     private func tool(_ title: String, _ subtitle: String, _ icon: String, _ color: Color) -> some View {
@@ -3373,6 +4076,8 @@ private func duplicateMetadataSummary(_ track: ClassicTrack) -> String {
 private struct PodBridgeSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     let openDiagnostics: () -> Void
+    @State private var shareItem: DiagnosticShareItem?
+    @State private var exportError: String?
 
     var body: some View {
         NavigationView {
@@ -3399,7 +4104,7 @@ private struct PodBridgeSettingsView: View {
                             .foregroundStyle(.primary)
                     }
                     Button {
-                        PersistentLogStore.shared.flush()
+                        exportDiagnostics()
                     } label: {
                         Label("Export Logs", systemImage: "square.and.arrow.up")
                             .foregroundStyle(.primary)
@@ -3428,6 +4133,28 @@ private struct PodBridgeSettingsView: View {
                     Button("Done") { dismiss() }
                 }
             }
+        }
+        .sheet(item: $shareItem) { item in
+            ActivityView(items: [item.url])
+        }
+        .alert("Diagnostics", isPresented: Binding(
+            get: { exportError != nil },
+            set: { if !$0 { exportError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportError ?? "Unknown error")
+        }
+    }
+
+    private func exportDiagnostics() {
+        do {
+            PersistentLogStore.shared.flush()
+            shareItem = DiagnosticShareItem(url: try PersistentLogStore.shared.makeExportFile())
+            AppLogger.ui("Diagnostics export prepared from settings", level: .info)
+        } catch {
+            exportError = error.localizedDescription
+            AppLogger.ui("Diagnostics export from settings failed error=\(error.localizedDescription)", level: .error)
         }
     }
 }

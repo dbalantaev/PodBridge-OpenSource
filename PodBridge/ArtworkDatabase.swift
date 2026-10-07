@@ -80,6 +80,8 @@ enum ArtworkDatabase {
         let databaseURL = artworkRoot.appendingPathComponent("ArtworkDB")
         let originalDatabase = try? Data(contentsOf: databaseURL, options: .mappedIfSafe)
         let profile = IPodDeviceProfile.saved(for: root) ?? .classic7
+        // Both iPod mini generations have monochrome displays and no artwork cache.
+        if profile == .mini1And2 { return nil }
         let formats = try availableFormats(from: originalDatabase, profile: profile)
         AppLogger.artwork(
             "Artwork plan started tracks=\(artworkTracks.count) existingDatabase=\(originalDatabase != nil) formats=\(formats.map(\.id).sorted())",
@@ -231,6 +233,8 @@ enum ArtworkDatabase {
     private static func defaultFormats(for profile: IPodDeviceProfile) -> [Format] {
         let ids: [UInt32]
         switch profile {
+        case .mini1And2:
+            ids = []
         case .classic7, .classic6, .nano3:
             ids = [1061, 1055, 1068, 1060]
         case .video5:

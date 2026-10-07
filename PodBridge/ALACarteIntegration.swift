@@ -874,7 +874,7 @@ private struct ALACarteWriteProgressView: View {
                     Text("\(model.copiedCount) tracks written to iPod")
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(.secondary)
-                    Label("Keep PodBridge open and do not disconnect the iPod.", systemImage: "info.circle.fill")
+                    Label("Keep the iPod connected. PodBridge keeps the screen awake and requests background time if you lock it.", systemImage: "info.circle.fill")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

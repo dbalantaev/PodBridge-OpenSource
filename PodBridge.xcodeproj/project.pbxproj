@@ -33,6 +33,7 @@
 		A10000000000000000000026 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000026 /* PrivacyInfo.xcprivacy */; };
 		A10000000000000000000027 /* ALACarteIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000027 /* ALACarteIntegration.swift */; };
 		A10000000000000000000028 /* ALACarteClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000028 /* ALACarteClientTests.swift */; };
+		A1000000000000000000002C /* SignatureRecovery.metal in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002C /* SignatureRecovery.metal */; };
 		A20000000000000000000001 /* PodBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* PodBridgeApp.swift */; };
 		A20000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* ContentView.swift */; };
 		A20000000000000000000003 /* MusicFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* MusicFile.swift */; };
@@ -52,6 +53,7 @@
 		A20000000000000000000024 /* Hash58.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000024 /* Hash58.swift */; };
 		A20000000000000000000025 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000025 /* Assets.xcassets */; };
 		A20000000000000000000026 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000026 /* PrivacyInfo.xcprivacy */; };
+		A2000000000000000000002C /* SignatureRecovery.metal in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002C /* SignatureRecovery.metal */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -104,6 +106,7 @@
 		B10000000000000000000029 /* PodBridgeALACarte.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PodBridgeALACarte.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1000000000000000000002A /* PodBridgeALACarteTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PodBridgeALACarteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1000000000000000000002B /* PodBridgeALACarte-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "PodBridgeALACarte-Info.plist"; sourceTree = "<group>"; };
+		B1000000000000000000002C /* SignatureRecovery.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = SignatureRecovery.metal; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -168,6 +171,7 @@
 				B10000000000000000000015 /* DebugShakeDetector.swift */,
 				B10000000000000000000023 /* IPodVolumeStore.swift */,
 				B10000000000000000000024 /* Hash58.swift */,
+				B1000000000000000000002C /* SignatureRecovery.metal */,
 				B10000000000000000000027 /* ALACarteIntegration.swift */,
 				B1000000000000000000002B /* PodBridgeALACarte-Info.plist */,
 				B10000000000000000000025 /* Assets.xcassets */,
@@ -378,6 +382,7 @@
 				A10000000000000000000015 /* DebugShakeDetector.swift in Sources */,
 				A10000000000000000000023 /* IPodVolumeStore.swift in Sources */,
 				A10000000000000000000024 /* Hash58.swift in Sources */,
+				A1000000000000000000002C /* SignatureRecovery.metal in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -414,6 +419,7 @@
 				A20000000000000000000015 /* DebugShakeDetector.swift in Sources */,
 				A20000000000000000000023 /* IPodVolumeStore.swift in Sources */,
 				A20000000000000000000024 /* Hash58.swift in Sources */,
+				A2000000000000000000002C /* SignatureRecovery.metal in Sources */,
 				A10000000000000000000027 /* ALACarteIntegration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -566,26 +572,31 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = PodBridge/PodBridgeMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 98U7W5TF2J;
+				CURRENT_PROJECT_VERSION = 3;
+				"ENABLE_APP_SANDBOX[sdk=macosx*]" = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "PodBridge/PodBridge-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = PodBridge;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
+				INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers = "$(PRODUCT_BUNDLE_IDENTIFIER).continued-processing.*";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				"INFOPLIST_KEY_LSApplicationCategoryType[sdk=macosx*]" = "public.app-category.music";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0;
+				MARKETING_VERSION = 2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.balantaev.podbridge;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTS_MACCATALYST = YES;
@@ -600,29 +611,35 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = PodBridge/PodBridgeMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 98U7W5TF2J;
+				CURRENT_PROJECT_VERSION = 3;
+				"ENABLE_APP_SANDBOX[sdk=macosx*]" = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "PodBridge/PodBridge-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = PodBridge;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
+				INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers = "$(PRODUCT_BUNDLE_IDENTIFIER).continued-processing.*";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				"INFOPLIST_KEY_LSApplicationCategoryType[sdk=macosx*]" = "public.app-category.music";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0;
+				MARKETING_VERSION = 2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.balantaev.podbridge;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTS_MACCATALYST = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "PODBRIDGE_DEMO $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -680,7 +697,6 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 98U7W5TF2J;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "PodBridge/PodBridgeALACarte-Info.plist";
@@ -707,7 +723,6 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 98U7W5TF2J;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "PodBridge/PodBridgeALACarte-Info.plist";

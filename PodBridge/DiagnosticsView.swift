@@ -3,22 +3,27 @@ import UIKit
 
 struct DiagnosticsDrawerView: View {
     @Environment(\.dismiss) private var dismiss
-#if DEBUG
+#if DEBUG || PODBRIDGE_DEMO
     var isEmulatingIPod = false
-    var emulateIPod: (() -> Void)?
+    var emulateIPod: ((DemoIPodScenario) -> Void)?
+    var disconnectEmulatedIPod: (() -> Void)?
 #endif
+    var canRemoveSignatureID = false
+    var removeSignatureID: (() throws -> URL)?
     @State private var logSize: Int64 = 0
     @State private var shareItem: DiagnosticShareItem?
     @State private var errorMessage: String?
     @State private var confirmingClear = false
+    @State private var confirmingSignatureIDRemoval = false
+    @State private var signatureIDBackupURL: URL?
 
     var body: some View {
         NavigationView {
             Form {
                 Section("Environment") {
                     PodBridgeLabeledContent("App") { Text(appVersion) }
-                    PodBridgeLabeledContent("System") { Text("\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)") }
-                    PodBridgeLabeledContent("Device") { Text(UIDevice.current.model) }
+                    PodBridgeLabeledContent("System") { Text(systemDescription) }
+                    PodBridgeLabeledContent("Device") { Text(deviceDescription) }
                 }
                 Section {
                     NavigationLink {
@@ -44,20 +49,38 @@ struct DiagnosticsDrawerView: View {
                 } footer: {
                     Text("The file survives app restarts and rotates at 4 MB. It can include filenames and playlist names, but never absolute paths, FirewireGuid, or media contents.")
                 }
-#if DEBUG
-                Section("Debug") {
-                    Button {
-                        emulateIPod?()
-                        dismiss()
-                    } label: {
-                        Label(
-                            isEmulatingIPod ? "Disconnect Emulated iPod" : "Emulate Connecting iPod",
-                            systemImage: isEmulatingIPod ? "eject.fill" : "ipod"
-                        )
+#if DEBUG || PODBRIDGE_DEMO
+                Section("Demo iPods") {
+                    demoButton("Normal iPod", subtitle: "ID present · Disk Use enabled", symbol: "ipod", scenario: .normal)
+                    demoButton("iPod without Disk Use", subtitle: "Shows the prompt to enable disk use", symbol: "externaldrive.badge.xmark", scenario: .diskUseDisabled)
+#if !targetEnvironment(macCatalyst)
+                    demoButton("iPod without signature ID", subtitle: "Shows computer and local brute-force recovery", symbol: "key.slash", scenario: .missingSignatureID)
+#endif
+                    if isEmulatingIPod {
+                        Button(role: .destructive) {
+                            disconnectEmulatedIPod?()
+                            dismiss()
+                        } label: {
+                            Label("Disconnect Demo iPod", systemImage: "eject.fill")
+                        }
                     }
-                    Text("Creates a temporary iPod Classic 7G library with demo tracks. No physical iPod is modified.")
+                    Text("Each option creates a temporary iPod Classic 7G library. No physical iPod is modified.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+#endif
+#if !targetEnvironment(macCatalyst)
+                Section {
+                    Button(role: .destructive) {
+                        confirmingSignatureIDRemoval = true
+                    } label: {
+                        Label("Remove iPod signature ID for test", systemImage: "key.slash")
+                    }
+                    .disabled(!canRemoveSignatureID || removeSignatureID == nil)
+                } header: {
+                    Text("Signature recovery test")
+                } footer: {
+                    Text("PodBridge first saves and verifies a TXT backup in Files. Only then does it remove the ID from readable iPod metadata and this app’s cache.")
                 }
 #endif
                 Section("Open") {
@@ -82,11 +105,56 @@ struct DiagnosticsDrawerView: View {
         } message: {
             Text("This removes diagnostics from current and previous app runs.")
         }
+        .confirmationDialog("Remove the signature ID from this iPod?", isPresented: $confirmingSignatureIDRemoval) {
+            Button("Back up ID and remove it", role: .destructive, action: removeIDForTest)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This is only for testing local brute-force recovery. PodBridge will verify a backup in Files before changing the iPod.")
+        }
         .alert("Diagnostics", isPresented: errorBinding) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "Unknown error")
         }
+    }
+
+#if DEBUG || PODBRIDGE_DEMO
+    private func demoButton(
+        _ title: String,
+        subtitle: String,
+        symbol: String,
+        scenario: DemoIPodScenario
+    ) -> some View {
+        Button {
+            emulateIPod?(scenario)
+            dismiss()
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Label(title, systemImage: symbol)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 28)
+            }
+        }
+    }
+#endif
+
+    private var systemDescription: String {
+#if targetEnvironment(macCatalyst)
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        return "macOS \(version.majorVersion).\(version.minorVersion)"
+#else
+        return "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"
+#endif
+    }
+
+    private var deviceDescription: String {
+#if targetEnvironment(macCatalyst)
+        return "Mac"
+#else
+        return UIDevice.current.model
+#endif
     }
 
     private var appVersion: String {
@@ -119,6 +187,15 @@ struct DiagnosticsDrawerView: View {
         do {
             try PersistentLogStore.shared.clear()
             refresh()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func removeIDForTest() {
+        do {
+            signatureIDBackupURL = try removeSignatureID?()
+            errorMessage = "ID removed. Backup saved at Files → On My iPhone → PodBridgeALACarte → PodBridge → \(signatureIDBackupURL?.lastPathComponent ?? "backup.txt")."
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -199,12 +276,12 @@ struct DiagnosticLogsView: View {
     }
 }
 
-private struct DiagnosticShareItem: Identifiable {
+struct DiagnosticShareItem: Identifiable {
     let id = UUID()
     let url: URL
 }
 
-private struct ActivityView: UIViewControllerRepresentable {
+struct ActivityView: UIViewControllerRepresentable {
     let items: [Any]
 
     func makeUIViewController(context: Context) -> UIActivityViewController {

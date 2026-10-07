@@ -67,6 +67,7 @@ struct TransferSummary: Sendable {
 }
 
 enum IPodDeviceProfile: String, CaseIterable, Identifiable, Sendable {
+    case mini1And2
     case classic7
     case classic6
     case video5
@@ -74,7 +75,7 @@ enum IPodDeviceProfile: String, CaseIterable, Identifiable, Sendable {
     case nano3
     case nano4
 
-    enum Checksum: Sendable {
+    enum Checksum: Sendable, Equatable {
         case none
         case hash58
     }
@@ -83,6 +84,7 @@ enum IPodDeviceProfile: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
+        case .mini1And2: "iPod mini 1st / 2nd gen"
         case .classic7: "iPod Classic 7th gen (160 GB)"
         case .classic6: "iPod Classic 6th / 6.5th gen"
         case .video5: "iPod Video 5th / 5.5th gen"
@@ -94,6 +96,7 @@ enum IPodDeviceProfile: String, CaseIterable, Identifiable, Sendable {
 
     var shortTitle: String {
         switch self {
+        case .mini1And2: "mini 1G / 2G"
         case .classic7: "Classic 7G"
         case .classic6: "Classic 6G / 6.5G"
         case .video5: "Video 5G / 5.5G"
@@ -106,7 +109,7 @@ enum IPodDeviceProfile: String, CaseIterable, Identifiable, Sendable {
     var checksum: Checksum {
         switch self {
         case .classic7, .classic6, .nano3, .nano4: .hash58
-        case .video5, .nano1And2: .none
+        case .mini1And2, .video5, .nano1And2: .none
         }
     }
 
@@ -128,6 +131,106 @@ enum IPodDeviceProfile: String, CaseIterable, Identifiable, Sendable {
         switch profile.checksum {
         case .none: return Data()
         case .hash58: return try ClassicDatabase.firewireID(at: root)
+        }
+    }
+}
+
+enum IPodDiskUseStatus: Equatable, Sendable {
+    case unavailable
+    case disabled
+    case enabled
+}
+
+/// Reads the legacy "enable disk use" bit used by classic iPods and updates it
+/// only when the known preference structures can be validated first.
+enum IPodDiskUsePreferences {
+    private static let flagOffset = 0x1f
+
+    private struct Snapshot {
+        let rawURL: URL
+        let raw: Data
+        let plistURL: URL
+        let plist: Data?
+        let plistObject: [String: Any]?
+        let plistFormat: PropertyListSerialization.PropertyListFormat?
+    }
+
+    static func status(at root: URL) -> IPodDiskUseStatus {
+        guard let snapshot = try? snapshot(at: root) else { return .unavailable }
+        let rawEnabled = snapshot.raw[flagOffset] != 0
+        guard let plistObject = snapshot.plistObject else {
+            return rawEnabled ? .enabled : .disabled
+        }
+        guard let preferences = plistObject["iPodPrefs"] as? Data,
+              preferences.count > flagOffset else { return .unavailable }
+        return rawEnabled && preferences[flagOffset] != 0 ? .enabled : .disabled
+    }
+
+    @discardableResult
+    static func enable(at root: URL) throws -> URL {
+        let snapshot = try snapshot(at: root)
+        let manager = FileManager.default
+        let backups = root.appendingPathComponent("iPod_Control/iTunes/PodBridge Settings Backups", isDirectory: true)
+        let backup = backups.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try manager.createDirectory(at: backup, withIntermediateDirectories: true)
+        try snapshot.raw.write(to: backup.appendingPathComponent("iTunesPrefs"), options: .atomic)
+        if let plist = snapshot.plist {
+            try plist.write(to: backup.appendingPathComponent("iTunesPrefs.plist"), options: .atomic)
+        }
+
+        var raw = snapshot.raw
+        raw[flagOffset] = 1
+        var plistData: Data?
+        if var object = snapshot.plistObject,
+           var preferences = object["iPodPrefs"] as? Data,
+           let format = snapshot.plistFormat {
+            preferences[flagOffset] = 1
+            object["iPodPrefs"] = preferences
+            plistData = try PropertyListSerialization.data(fromPropertyList: object, format: format, options: 0)
+        }
+
+        do {
+            try raw.write(to: snapshot.rawURL, options: .atomic)
+            if let plistData { try plistData.write(to: snapshot.plistURL, options: .atomic) }
+            guard status(at: root) == .enabled else { throw UpdateError.verificationFailed }
+            AppLogger.device("Enabled persistent disk use; settings backup=\(backup.lastPathComponent)", level: .info)
+            return backup
+        } catch {
+            try? snapshot.raw.write(to: snapshot.rawURL, options: .atomic)
+            if let plist = snapshot.plist { try? plist.write(to: snapshot.plistURL, options: .atomic) }
+            throw error
+        }
+    }
+
+    private static func snapshot(at root: URL) throws -> Snapshot {
+        let iTunes = root.appendingPathComponent("iPod_Control/iTunes", isDirectory: true)
+        let rawURL = iTunes.appendingPathComponent("iTunesPrefs")
+        let plistURL = iTunes.appendingPathComponent("iTunesPrefs.plist")
+        let raw = try Data(contentsOf: rawURL)
+        guard raw.count > flagOffset else { throw UpdateError.unknownFormat }
+
+        guard FileManager.default.fileExists(atPath: plistURL.path) else {
+            return Snapshot(rawURL: rawURL, raw: raw, plistURL: plistURL, plist: nil, plistObject: nil, plistFormat: nil)
+        }
+        let plist = try Data(contentsOf: plistURL)
+        var format = PropertyListSerialization.PropertyListFormat.xml
+        guard let object = try PropertyListSerialization.propertyList(from: plist, format: &format) as? [String: Any],
+              let preferences = object["iPodPrefs"] as? Data,
+              preferences.count > flagOffset else { throw UpdateError.unknownFormat }
+        return Snapshot(rawURL: rawURL, raw: raw, plistURL: plistURL, plist: plist, plistObject: object, plistFormat: format)
+    }
+
+    private enum UpdateError: LocalizedError {
+        case unknownFormat
+        case verificationFailed
+
+        var errorDescription: String? {
+            switch self {
+            case .unknownFormat:
+                return "This iPod uses an unknown settings format, so PodBridge did not change it."
+            case .verificationFailed:
+                return "The disk-use setting could not be verified. The original settings were restored."
+            }
         }
     }
 }

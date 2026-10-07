@@ -12,6 +12,198 @@ import Foundation
 /// verify the result, and restore the backup on failure. Binary-format details
 /// remain in `ClassicDatabase` and `ArtworkDatabase`.
 enum IPodSyncEngine {
+    struct ExportResult: Sendable {
+        let folderURL: URL
+        let copiedTracks: Int
+        let copiedBytes: UInt64
+    }
+
+    struct LibraryImportResult: Sendable {
+        let library: ClassicLibrary
+        let restoredTracks: Int
+        let restoredPlaylists: Int
+        let backupURL: URL
+    }
+
+    private struct ExportLibrary: Codable {
+        let format: String
+        let version: Int
+        let exportedAt: Date
+        let tracks: [ExportTrack]
+        let playlists: [ExportPlaylist]
+    }
+
+    private struct ExportTrack: Codable {
+        let id: UInt32
+        let databaseID: UInt64
+        let title: String
+        let artist: String
+        let album: String
+        let durationMS: UInt32
+        let relativePath: String
+        let rating: UInt8
+        let playCount: UInt32
+        let skipCount: UInt32
+        let lastPlayed: UInt32
+        let lastSkipped: UInt32
+    }
+
+    private struct ExportPlaylist: Codable {
+        let name: String
+        let trackDatabaseIDs: [UInt64]
+    }
+
+    struct DeletionProgress: Sendable {
+        let stage: String
+        let completed: Int
+        let total: Int
+    }
+
+    enum ExportError: LocalizedError {
+        case missingAudio(String)
+        case unsafeAudioPath
+        case destinationIsIPod
+        case copyVerificationFailed
+
+        var errorDescription: String? {
+            switch self {
+            case .missingAudio(let title): "The audio file for \(title) is missing from the iPod. Nothing was exported."
+            case .unsafeAudioPath: "An iPod track has an invalid audio path. Nothing was exported."
+            case .destinationIsIPod: "Choose a folder on the iPhone or in iCloud Drive, outside the iPod."
+            case .copyVerificationFailed: "An exported audio file failed verification. The incomplete export was removed."
+            }
+        }
+    }
+
+    /// Copies original audio files to a new folder in Files without changing the iPod.
+    static func exportTracks(
+        _ tracks: [ClassicTrack],
+        playlists: [ClassicPlaylist] = [],
+        root: URL,
+        destinationFolder: URL,
+        progress: @escaping @Sendable (Int) async -> Void
+    ) async throws -> ExportResult {
+        try await Task.detached(priority: .userInitiated) {
+            let manager = FileManager.default
+            let musicRoot = root.appendingPathComponent("iPod_Control/Music", isDirectory: true).standardizedFileURL.path
+            let destinationPath = destinationFolder.standardizedFileURL.path
+            let rootPath = root.standardizedFileURL.path
+            guard destinationPath != rootPath,
+                  !destinationPath.hasPrefix(rootPath + "/") else {
+                throw ExportError.destinationIsIPod
+            }
+            let sources = try tracks.map { track -> (ClassicTrack, URL) in
+                guard let url = trackURL(path: track.ipodPath, root: root),
+                      url.standardizedFileURL.path.hasPrefix(musicRoot + "/") else {
+                    throw ExportError.unsafeAudioPath
+                }
+                guard manager.fileExists(atPath: url.path) else {
+                    throw ExportError.missingAudio(track.title)
+                }
+                return (track, url)
+            }
+            var exportFolder = destinationFolder.appendingPathComponent("PodBridge Export", isDirectory: true)
+            var suffix = 2
+            while manager.fileExists(atPath: exportFolder.path) {
+                exportFolder = destinationFolder.appendingPathComponent("PodBridge Export \(suffix)", isDirectory: true)
+                suffix += 1
+            }
+            try manager.createDirectory(at: exportFolder, withIntermediateDirectories: false)
+            do {
+                var copiedBytes: UInt64 = 0
+                var relativePaths: [UInt32: String] = [:]
+                for (index, item) in sources.enumerated() {
+                    try Task.checkCancellation()
+                    let artist = safeExportName(item.0.albumArtist.isEmpty ? item.0.artist : item.0.albumArtist, fallback: "Unknown Artist")
+                    let album = safeExportName(item.0.album, fallback: "Unknown Album")
+                    let folder = exportFolder.appendingPathComponent(artist, isDirectory: true)
+                        .appendingPathComponent(album, isDirectory: true)
+                    try manager.createDirectory(at: folder, withIntermediateDirectories: true)
+                    let title = safeExportName(item.0.title, fallback: "Unknown Song")
+                    let prefix = item.0.trackNumber == 0 ? "" : String(format: "%02d - ", item.0.trackNumber)
+                    let fileExtension = item.1.pathExtension
+                    let baseName = prefix + title
+                    var target = folder.appendingPathComponent(baseName).appendingPathExtension(fileExtension)
+                    var copyNumber = 2
+                    while manager.fileExists(atPath: target.path) {
+                        target = folder.appendingPathComponent("\(baseName) (\(copyNumber))").appendingPathExtension(fileExtension)
+                        copyNumber += 1
+                    }
+                    try manager.copyItem(at: item.1, to: target)
+                    let size = try target.resourceValues(forKeys: [.fileSizeKey]).fileSize
+                    guard size == Int(item.0.byteCount) else { throw ExportError.copyVerificationFailed }
+                    copiedBytes += UInt64(item.0.byteCount)
+                    relativePaths[item.0.id] = target.path.replacingOccurrences(of: exportFolder.path + "/", with: "")
+                    await progress(index + 1)
+                }
+                let exportedTracks = tracks.map { track in
+                    ExportTrack(
+                        id: track.id, databaseID: track.databaseID, title: track.title,
+                        artist: track.artist, album: track.album, durationMS: track.durationMS,
+                        relativePath: relativePaths[track.id] ?? "", rating: track.rating,
+                        playCount: track.playCount, skipCount: track.skipCount,
+                        lastPlayed: track.lastPlayed, lastSkipped: track.lastSkipped
+                    )
+                }
+                let selected = Dictionary(uniqueKeysWithValues: tracks.map { ($0.id, $0.databaseID) })
+                let exportedPlaylists = playlists.compactMap { playlist -> ExportPlaylist? in
+                    let ids = playlist.trackIDs.compactMap { selected[$0] }
+                    return ids.isEmpty ? nil : ExportPlaylist(name: playlist.name, trackDatabaseIDs: ids)
+                }
+                let manifest = ExportLibrary(
+                    format: "PodBridge Library", version: 1, exportedAt: Date(),
+                    tracks: exportedTracks, playlists: exportedPlaylists
+                )
+                let encoder = JSONEncoder()
+                encoder.dateEncodingStrategy = .iso8601
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                let json = try encoder.encode(manifest)
+                let jsonURL = exportFolder.appendingPathComponent("PodBridge Library.json")
+                try json.write(to: jsonURL, options: .atomic)
+                guard try Data(contentsOf: jsonURL) == json else { throw ExportError.copyVerificationFailed }
+
+                var csv = "database_id,title,artist,album,rating_0_100,play_count,skip_count,last_played_apple_epoch,last_skipped_apple_epoch,relative_path\n"
+                for track in exportedTracks {
+                    let values = [String(track.databaseID), track.title, track.artist, track.album,
+                                  String(track.rating), String(track.playCount), String(track.skipCount),
+                                  String(track.lastPlayed), String(track.lastSkipped), track.relativePath]
+                    csv += values.map(csvField).joined(separator: ",") + "\n"
+                }
+                try Data(csv.utf8).write(to: exportFolder.appendingPathComponent("PodBridge Library.csv"), options: .atomic)
+
+                if !exportedPlaylists.isEmpty {
+                    let playlistFolder = exportFolder.appendingPathComponent("Playlists", isDirectory: true)
+                    try manager.createDirectory(at: playlistFolder, withIntermediateDirectories: true)
+                    let pathByDatabaseID = Dictionary(uniqueKeysWithValues: exportedTracks.map { ($0.databaseID, $0.relativePath) })
+                    for playlist in exportedPlaylists {
+                        let body = (["#EXTM3U"] + playlist.trackDatabaseIDs.compactMap { pathByDatabaseID[$0] }.map { "../\($0)" }).joined(separator: "\n") + "\n"
+                        let name = safeExportName(playlist.name, fallback: "Playlist")
+                        try Data(body.utf8).write(to: playlistFolder.appendingPathComponent(name).appendingPathExtension("m3u8"), options: .atomic)
+                    }
+                }
+                return ExportResult(folderURL: exportFolder, copiedTracks: sources.count, copiedBytes: copiedBytes)
+            } catch {
+                try? manager.removeItem(at: exportFolder)
+                throw error
+            }
+        }.value
+    }
+
+    private static func csvField(_ value: String) -> String {
+        "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    }
+
+    private static func safeExportName(_ value: String, fallback: String) -> String {
+        let cleaned = String(value.unicodeScalars.map { scalar -> Character in
+            if CharacterSet.controlCharacters.contains(scalar) || "/\\:".unicodeScalars.contains(scalar) {
+                return "_"
+            }
+            return Character(scalar)
+        }).trimmingCharacters(in: .whitespacesAndNewlines)
+        let component = cleaned.trimmingCharacters(in: CharacterSet(charactersIn: ". "))
+        return component.isEmpty ? fallback : String(component.prefix(120))
+    }
+
     /// Deterministic failure points used by the local virtual-iPod tests.
     enum TestFailurePoint: Sendable, Equatable {
         case afterArtworkApply
@@ -220,7 +412,93 @@ enum IPodSyncEngine {
     static func library(root: URL) throws -> ClassicLibrary {
         let databaseURL = root.appendingPathComponent("iPod_Control/iTunes/iTunesDB")
         guard FileManager.default.fileExists(atPath: databaseURL.path) else { throw PodBridgeError.notAnIPod }
-        return try ClassicDatabase.parse(Data(contentsOf: databaseURL, options: .mappedIfSafe))
+        let original = try Data(contentsOf: databaseURL, options: .mappedIfSafe)
+        let playCountsURL = root.appendingPathComponent("iPod_Control/iTunes/Play Counts")
+        if let counts = try? Data(contentsOf: playCountsURL, options: .mappedIfSafe),
+           let key = try? IPodDeviceProfile.databaseKey(at: root),
+           let applied = try? ClassicDatabase.applyingPlayCounts(counts, to: original, firewireID: key) {
+            return try ClassicDatabase.parse(applied)
+        }
+        return try ClassicDatabase.parse(original)
+    }
+
+    /// Restores ratings and playback statistics from a PodBridge export manifest.
+    /// Playlists with the same name are replaced; other playlists are retained.
+    static func importLibraryJSON(_ jsonURL: URL, root: URL) async throws -> LibraryImportResult {
+        try await Task.detached(priority: .userInitiated) {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let manifest = try decoder.decode(ExportLibrary.self, from: Data(contentsOf: jsonURL))
+            guard manifest.format == "PodBridge Library", manifest.version == 1 else {
+                throw PodBridgeError.invalidMetadata
+            }
+            let store = LocalIPodVolumeStore(root: root)
+            let original = try store.readDatabase()
+            let firewireID = try IPodDeviceProfile.databaseKey(at: root)
+            var currentData = original
+            let playCountsURL = root.appendingPathComponent("iPod_Control/iTunes/Play Counts")
+            if let counts = try? Data(contentsOf: playCountsURL, options: .mappedIfSafe) {
+                currentData = try ClassicDatabase.applyingPlayCounts(counts, to: original, firewireID: firewireID)
+            }
+            var library = try ClassicDatabase.parse(currentData)
+            let exportedByDatabaseID = Dictionary(uniqueKeysWithValues: manifest.tracks.map { ($0.databaseID, $0) })
+            var restored = 0
+            for index in library.tracks.indices {
+                let current = library.tracks[index]
+                let fallback = manifest.tracks.first {
+                    $0.title.caseInsensitiveCompare(current.title) == .orderedSame
+                        && $0.artist.caseInsensitiveCompare(current.artist) == .orderedSame
+                        && $0.album.caseInsensitiveCompare(current.album) == .orderedSame
+                        && abs(Int64($0.durationMS) - Int64(current.durationMS)) <= 2_000
+                }
+                guard let saved = exportedByDatabaseID[current.databaseID] ?? fallback else { continue }
+                library.tracks[index].rating = min(saved.rating, 100)
+                library.tracks[index].playCount = saved.playCount
+                library.tracks[index].skipCount = saved.skipCount
+                library.tracks[index].lastPlayed = saved.lastPlayed
+                library.tracks[index].lastSkipped = saved.lastSkipped
+                restored += 1
+            }
+            let currentIDByDatabaseID = Dictionary(uniqueKeysWithValues: library.tracks.map { ($0.databaseID, $0.id) })
+            var restoredPlaylists = 0
+            for saved in manifest.playlists {
+                let ids = saved.trackDatabaseIDs.compactMap { currentIDByDatabaseID[$0] }
+                guard !ids.isEmpty else { continue }
+                if let index = library.playlists.firstIndex(where: { $0.name.caseInsensitiveCompare(saved.name) == .orderedSame }) {
+                    library.playlists[index].trackIDs = ids
+                } else {
+                    library.playlists.append(ClassicPlaylist(name: saved.name, trackIDs: ids))
+                }
+                restoredPlaylists += 1
+            }
+            guard restored > 0 else { throw PodBridgeError.trackNotFound }
+            let databaseID = try currentData.littleUInt64(at: 0x18)
+            let updated = try ClassicDatabase.build(library: library, firewireID: firewireID, databaseID: databaseID)
+            let verified = try ClassicDatabase.parse(updated)
+            guard verified == library else { throw PodBridgeError.databaseVerificationFailed }
+            let transaction = try IPodDatabaseTransaction(
+                store: store, original: original,
+                temporaryName: "iTunesDB.podbridge.library-import.tmp",
+                afterActivation: { try failIfInjected(.afterDatabaseReplacement) }
+            )
+            do {
+                try transaction.stage(updated)
+                try transaction.activate()
+                guard try store.readDatabase() == updated else { throw PodBridgeError.databaseVerificationFailed }
+                if FileManager.default.fileExists(atPath: playCountsURL.path) {
+                    let archive = playCountsURL.deletingLastPathComponent()
+                        .appendingPathComponent("Play Counts.podbridge.\(UUID().uuidString).bak")
+                    try FileManager.default.moveItem(at: playCountsURL, to: archive)
+                }
+                return LibraryImportResult(
+                    library: verified, restoredTracks: restored,
+                    restoredPlaylists: restoredPlaylists, backupURL: transaction.backupURL
+                )
+            } catch {
+                try transaction.rollback()
+                throw error
+            }
+        }.value
     }
 
     static func repairDatabaseSignature(root: URL) async throws -> SignatureRepairResult {
@@ -523,15 +801,33 @@ enum IPodSyncEngine {
         }.value
     }
 
-    static func deleteTracksPermanently(ids: [UInt32], root: URL) async throws -> PermanentDeletionResult {
+    static func deleteTracksPermanently(
+        ids: [UInt32],
+        root: URL,
+        progress: (@Sendable (DeletionProgress) async -> Void)? = nil
+    ) async throws -> PermanentDeletionResult {
         try await Task.detached(priority: .userInitiated) {
-            try deleteTracksPermanentlySynchronously(ids: ids, root: root)
+            try await deleteTracksPermanentlySynchronously(ids: ids, root: root, progress: progress)
+        }.value
+    }
+
+    static func clearLibrary(
+        root: URL,
+        progress: @escaping @Sendable (DeletionProgress) async -> Void
+    ) async throws -> PermanentDeletionResult {
+        try await Task.detached(priority: .userInitiated) {
+            try await deleteTracksPermanentlySynchronously(
+                ids: [],
+                clearingLibrary: true,
+                root: root,
+                progress: progress
+            )
         }.value
     }
 
     static func deletePlaylistAndTracks(index: Int, root: URL) async throws -> PermanentDeletionResult {
         try await Task.detached(priority: .userInitiated) {
-            try deleteTracksPermanentlySynchronously(ids: [], removingPlaylistAt: index, root: root)
+            try await deleteTracksPermanentlySynchronously(ids: [], removingPlaylistAt: index, root: root)
         }.value
     }
 
@@ -740,6 +1036,8 @@ enum IPodSyncEngine {
         var stage = "read-existing-database"
         AppLogger.sync("Engine started additions=\(files.count) sourcePlaylists=\(playlists.count)", level: .info)
         let original: Data
+        var databaseForMerge: Data
+        var playCountsURLToArchive: URL?
         let existingLibrary: ClassicLibrary
         let firewireID: Data
         do {
@@ -748,6 +1046,20 @@ enum IPodSyncEngine {
             existingLibrary = try ClassicDatabase.parse(original)
             stage = "read-firewire-guid"
             firewireID = try IPodDeviceProfile.databaseKey(at: root)
+            databaseForMerge = original
+            let playCountsURL = itunes.appendingPathComponent("Play Counts")
+            if manager.fileExists(atPath: playCountsURL.path) {
+                stage = "merge-play-counts"
+                let playCounts = try Data(contentsOf: playCountsURL, options: .mappedIfSafe)
+                if !playCounts.isEmpty {
+                    databaseForMerge = try ClassicDatabase.applyingPlayCounts(
+                        playCounts,
+                        to: original,
+                        firewireID: firewireID
+                    )
+                    playCountsURLToArchive = playCountsURL
+                }
+            }
         } catch {
             AppLogger.sync("Engine preflight failed stage=\(stage) error=\(error.localizedDescription)", level: .error)
             throw error
@@ -878,6 +1190,7 @@ enum IPodSyncEngine {
             }
 
             stage = "merge-itunesdb"
+            try Task.checkCancellation()
             let pendingPlaylists = playlists.map {
                 ClassicDatabase.PendingPlaylist(
                     name: $0.name,
@@ -887,7 +1200,7 @@ enum IPodSyncEngine {
                 )
             }
             let merged = try ClassicDatabase.merge(
-                existing: original,
+                existing: databaseForMerge,
                 additions: additions,
                 pendingPlaylists: pendingPlaylists,
                 firewireID: firewireID
@@ -905,8 +1218,10 @@ enum IPodSyncEngine {
             }
             let mergedAdditions = Array(merged.library.tracks.suffix(additions.count))
             stage = "prepare-artwork"
+            try Task.checkCancellation()
             let artworkPlan = try ArtworkDatabase.prepare(root: root, tracks: mergedAdditions)
             stage = "create-backup"
+            try Task.checkCancellation()
             transaction = try IPodDatabaseTransaction(
                 store: store,
                 original: original,
@@ -918,6 +1233,7 @@ enum IPodSyncEngine {
             AppLogger.database("Verified backup created name=\(backupFolder.lastPathComponent)", level: .info)
             if let artworkPlan {
                 stage = "apply-artwork"
+                try Task.checkCancellation()
                 try ArtworkDatabase.apply(artworkPlan, backupFolder: backupFolder)
                 appliedArtworkPlan = artworkPlan
                 try failIfInjected(.afterArtworkApply)
@@ -925,6 +1241,7 @@ enum IPodSyncEngine {
                 AppLogger.artwork("No embedded artwork to add", level: .debug)
             }
             stage = "write-temporary-database"
+            try Task.checkCancellation()
             try transaction.stage(merged.data)
             let written = try Data(contentsOf: transaction.temporaryURL)
             guard written == merged.data,
@@ -934,6 +1251,7 @@ enum IPodSyncEngine {
             AppLogger.database("Temporary database verified bytes=\(written.count)", level: .info)
 
             stage = "replace-itunesdb"
+            try Task.checkCancellation()
             do {
                 try transaction.activate()
                 if let handle = try? FileHandle(forWritingTo: store.databaseURL) {
@@ -968,6 +1286,16 @@ enum IPodSyncEngine {
                     "Active iTunesDB replaced and reverified bytes=\(active.count) tracks=\(merged.library.tracks.count) masterCopies=consistent companionFiles=[\(companionFiles)]",
                     level: .info
                 )
+
+                if let playCountsURLToArchive {
+                    stage = "archive-play-counts"
+                    let backupURL = itunes.appendingPathComponent("Play Counts.bak")
+                    if manager.fileExists(atPath: backupURL.path) {
+                        try manager.removeItem(at: backupURL)
+                    }
+                    try manager.moveItem(at: playCountsURLToArchive, to: backupURL)
+                    AppLogger.database("Play Counts merged and archived", level: .info)
+                }
 
             } catch {
                 AppLogger.database("iTunesDB replacement failed; restoring backup error=\(error.localizedDescription)", level: .error)
@@ -1042,6 +1370,7 @@ enum IPodSyncEngine {
         let store = LocalIPodVolumeStore(root: root)
         let original = try store.readDatabase()
         let firewireID = try IPodDeviceProfile.databaseKey(at: root)
+        let originalLibrary = try ClassicDatabase.parse(original)
         let before = try ClassicDatabase.inspect(original, firewireID: firewireID)
         guard before.masterPlaylistFound,
               before.playlistSectionsConsistent,
@@ -1139,6 +1468,13 @@ enum IPodSyncEngine {
             )
             description = "album-artist-normalization albums=\(plans.count) tracks=\(plans.reduce(0) { $0 + $1.trackIDs.count })"
         }
+        guard trackInventoryIsPreserved(before: originalLibrary, after: edit.library) else {
+            AppLogger.database(
+                "Library edit rejected operation=\(description) reason=track-inventory-changed before=\(originalLibrary.tracks.count) after=\(edit.library.tracks.count)",
+                level: .error
+            )
+            throw PodBridgeError.databaseVerificationFailed
+        }
         let transaction = try IPodDatabaseTransaction(
             store: store,
             original: original,
@@ -1179,8 +1515,10 @@ enum IPodSyncEngine {
     private static func deleteTracksPermanentlySynchronously(
         ids: [UInt32],
         removingPlaylistAt playlistIndex: Int? = nil,
-        root: URL
-    ) throws -> PermanentDeletionResult {
+        clearingLibrary: Bool = false,
+        root: URL,
+        progress: (@Sendable (DeletionProgress) async -> Void)? = nil
+    ) async throws -> PermanentDeletionResult {
         try Task.checkCancellation()
         let manager = FileManager.default
         let store = LocalIPodVolumeStore(root: root, manager: manager)
@@ -1194,9 +1532,18 @@ enum IPodSyncEngine {
               before.sortIndexesValid,
               before.jumpTablesValid,
               before.hash58Valid else { throw PodBridgeError.libraryRestoreRequired }
+        let playCountsURL = itunes.appendingPathComponent("Play Counts")
+        let hasPlayCounts = manager.fileExists(atPath: playCountsURL.path)
+        let pendingPlayCounts = hasPlayCounts ? try Data(contentsOf: playCountsURL, options: .mappedIfSafe) : Data()
+        let databaseForDeletion = pendingPlayCounts.isEmpty
+            ? original
+            : try ClassicDatabase.applyingPlayCounts(pendingPlayCounts, to: original, firewireID: firewireID)
+        await progress?(DeletionProgress(stage: "Preparing the iPod library", completed: 0, total: 0))
         let removal: ClassicDatabase.BatchRemovalResult
-        if let playlistIndex {
-            let originalLibrary = try ClassicDatabase.parse(original)
+        if clearingLibrary {
+            removal = try ClassicDatabase.clearingLibrary(existing: databaseForDeletion, firewireID: firewireID)
+        } else if let playlistIndex {
+            let originalLibrary = try ClassicDatabase.parse(databaseForDeletion)
             guard originalLibrary.playlists.indices.contains(playlistIndex) else {
                 throw PodBridgeError.playlistNotFound
             }
@@ -1206,7 +1553,7 @@ enum IPodSyncEngine {
                 tracks: originalLibrary.tracks
             )
             let playlistRemoval = try ClassicDatabase.removingPlaylist(
-                existing: original,
+                existing: databaseForDeletion,
                 playlistIndex: playlistIndex,
                 firewireID: firewireID
             )
@@ -1224,7 +1571,7 @@ enum IPodSyncEngine {
                 )
             }
         } else {
-            removal = try ClassicDatabase.removingTracks(existing: original, trackIDs: ids, firewireID: firewireID)
+            removal = try ClassicDatabase.removingTracks(existing: databaseForDeletion, trackIDs: ids, firewireID: firewireID)
         }
         let files = removal.removedTracks.compactMap { track -> (ClassicTrack, URL)? in
             guard let url = trackURL(path: track.ipodPath, root: root) else { return nil }
@@ -1247,6 +1594,10 @@ enum IPodSyncEngine {
                   diagnostics.jumpTablesValid else {
                 throw PodBridgeError.databaseVerificationFailed
             }
+            if hasPlayCounts {
+                let archive = itunes.appendingPathComponent("Play Counts.podbridge.\(UUID().uuidString).bak")
+                try manager.moveItem(at: playCountsURL, to: archive)
+            }
         } catch {
             store.removeItem(at: temporaryDatabase)
             if databaseActivated {
@@ -1263,25 +1614,28 @@ enum IPodSyncEngine {
 
         var freedBytes: UInt64 = 0
         var failed = removal.removedTracks.count - files.count
-        for (track, url) in files {
-            if !manager.fileExists(atPath: url.path) { continue }
-            do {
-                try manager.removeItem(at: url)
-                if manager.fileExists(atPath: url.path) {
+        for (index, item) in files.enumerated() {
+            let (track, url) = item
+            if manager.fileExists(atPath: url.path) {
+                do {
+                    try manager.removeItem(at: url)
+                    if manager.fileExists(atPath: url.path) {
+                        failed += 1
+                    } else {
+                        freedBytes += UInt64(track.byteCount)
+                    }
+                } catch {
                     failed += 1
-                } else {
-                    freedBytes += UInt64(track.byteCount)
+                    AppLogger.database(
+                        "Orphan audio cleanup failed id=\(track.id) path=\(track.ipodPath) error=\(error.localizedDescription)",
+                        level: .error
+                    )
                 }
-            } catch {
-                failed += 1
-                AppLogger.database(
-                    "Orphan audio cleanup failed id=\(track.id) path=\(track.ipodPath) error=\(error.localizedDescription)",
-                    level: .error
-                )
             }
+            await progress?(DeletionProgress(stage: "Removing audio files", completed: index + 1, total: files.count))
         }
         AppLogger.database(
-            "Permanent deletion completed tracks=\(removal.removedTracks.count) playlistRemoved=\(playlistIndex != nil) remaining=\(removal.library.tracks.count) freedBytes=\(freedBytes) failedFileDeletions=\(failed) audioBackup=false hash58=valid",
+            "Permanent deletion completed tracks=\(removal.removedTracks.count) playlistRemoved=\(playlistIndex != nil) clearLibrary=\(clearingLibrary) remaining=\(removal.library.tracks.count) freedBytes=\(freedBytes) failedFileDeletions=\(failed) audioBackup=false hash58=valid",
             level: failed == 0 ? .info : .error
         )
         return PermanentDeletionResult(
@@ -1344,6 +1698,14 @@ enum IPodSyncEngine {
             artworkByTrackID: artworkByTrackID,
             firewireID: firewireID
         )
+        guard trackInventoryIsPreserved(before: library, after: edit.library),
+              tracksDifferOnlyByArtwork(before: library, after: edit.library) else {
+            AppLogger.artwork(
+                "Playlist artwork rejected reason=non-artwork-library-change before=\(library.tracks.count) after=\(edit.library.tracks.count)",
+                level: .error
+            )
+            throw PodBridgeError.databaseVerificationFailed
+        }
         guard let artworkPlan = try ArtworkDatabase.prepare(root: root, tracks: edit.updatedTracks) else {
             throw PodBridgeError.invalidArtwork
         }
@@ -1510,6 +1872,14 @@ enum IPodSyncEngine {
             artworkByTrackID: artworkByTrackID,
             firewireID: firewireID
         )
+        guard trackInventoryIsPreserved(before: library, after: edit.library),
+              tracksDifferOnlyByArtwork(before: library, after: edit.library) else {
+            AppLogger.artwork(
+                "\(logOperation) rejected reason=non-artwork-library-change before=\(library.tracks.count) after=\(edit.library.tracks.count)",
+                level: .error
+            )
+            throw PodBridgeError.databaseVerificationFailed
+        }
         guard let artworkPlan = try ArtworkDatabase.prepare(root: root, tracks: edit.updatedTracks) else {
             throw PodBridgeError.invalidArtwork
         }
@@ -1568,6 +1938,46 @@ enum IPodSyncEngine {
             level: .info
         )
         return LibraryEditResult(library: edit.library, backupURL: transaction.backupURL)
+    }
+
+    /// A metadata, playlist, or artwork edit must never add, remove, replace, or
+    /// redirect an audio record. Comparing the master member count alone is not
+    /// sufficient: a malformed rewrite could theoretically replace one track
+    /// with another while keeping the same total.
+    private static func trackInventoryIsPreserved(
+        before: ClassicLibrary,
+        after: ClassicLibrary
+    ) -> Bool {
+        guard before.tracks.count == after.tracks.count,
+              Set(before.tracks.map(\.id)).count == before.tracks.count,
+              Set(after.tracks.map(\.id)).count == after.tracks.count else { return false }
+        let afterByID = Dictionary(uniqueKeysWithValues: after.tracks.map { ($0.id, $0) })
+        return before.tracks.allSatisfy { original in
+            guard let updated = afterByID[original.id] else { return false }
+            return updated.databaseID == original.databaseID
+                && updated.ipodPath == original.ipodPath
+                && updated.byteCount == original.byteCount
+                && updated.durationMS == original.durationMS
+                && updated.bitrate == original.bitrate
+                && updated.sampleRate == original.sampleRate
+                && updated.dateAdded == original.dateAdded
+        }
+    }
+
+    /// Artwork repair is narrower than a general library edit. Every field
+    /// except the artwork reference and decoded preview must remain identical.
+    private static func tracksDifferOnlyByArtwork(
+        before: ClassicLibrary,
+        after: ClassicLibrary
+    ) -> Bool {
+        let afterByID = Dictionary(uniqueKeysWithValues: after.tracks.map { ($0.id, $0) })
+        return before.tracks.allSatisfy { original in
+            guard var updated = afterByID[original.id] else { return false }
+            updated.artworkImageID = original.artworkImageID
+            updated.artworkByteCount = original.artworkByteCount
+            updated.artworkData = original.artworkData
+            return updated == original
+        }
     }
 
     private static func findMissingArtworkSynchronously(
@@ -1698,6 +2108,14 @@ enum IPodSyncEngine {
             artworkByTrackID: artworkByTrackID,
             firewireID: firewireID
         )
+        guard trackInventoryIsPreserved(before: originalLibrary, after: edit.library),
+              tracksDifferOnlyByArtwork(before: originalLibrary, after: edit.library) else {
+            AppLogger.artwork(
+                "Automatic artwork rejected reason=non-artwork-library-change before=\(originalLibrary.tracks.count) after=\(edit.library.tracks.count)",
+                level: .error
+            )
+            throw PodBridgeError.databaseVerificationFailed
+        }
         guard let artworkPlan = try ArtworkDatabase.prepare(root: root, tracks: edit.updatedTracks) else {
             throw PodBridgeError.invalidArtwork
         }

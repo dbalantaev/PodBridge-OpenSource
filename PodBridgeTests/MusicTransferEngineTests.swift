@@ -141,4 +141,45 @@ final class MusicTransferEngineTests: XCTestCase {
         XCTAssertEqual(playlists.count, 1)
         XCTAssertEqual(playlists[0].fileIndices.map { files[$0].name }, ["02 Second Song.m4a", "01 First Song.m4a"])
     }
+
+#if DEBUG || PODBRIDGE_DEMO
+    @MainActor
+    func testDemoIPodUsesTemporaryLibraryAndDisconnectsCleanly() {
+        let model = MusicTransferViewModel()
+
+        model.emulateConnectedIPod()
+
+        XCTAssertNil(model.errorMessage)
+        XCTAssertTrue(model.isEmulatingIPod)
+        XCTAssertEqual(model.destinationDeviceProfile, .classic7)
+        XCTAssertEqual(model.libraryTracks.count, 10)
+        XCTAssertEqual(model.libraryAlbums.count, 3)
+        XCTAssertEqual(model.libraryPlaylists.count, 2)
+        let demoRoot = model.destinationFolder
+        XCTAssertEqual(demoRoot?.lastPathComponent, "Demo iPod")
+        XCTAssertTrue(demoRoot?.path.contains("PodBridge-Emulated-") == true)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: demoRoot?.path ?? ""))
+
+        model.disconnectDestination()
+
+        XCTAssertFalse(model.isEmulatingIPod)
+        XCTAssertNil(model.destinationFolder)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: demoRoot?.path ?? ""))
+    }
+
+    @MainActor
+    func testDemoIPodScenariosExposeExpectedConnectionStates() {
+        let model = MusicTransferViewModel()
+
+        model.emulateConnectedIPod(.diskUseDisabled)
+        XCTAssertEqual(model.destinationDiskUseStatus, .disabled)
+        XCTAssertFalse(model.destinationNeedsFirewireID)
+
+        model.emulateConnectedIPod(.missingSignatureID)
+        XCTAssertEqual(model.destinationDiskUseStatus, .enabled)
+        XCTAssertTrue(model.destinationNeedsFirewireID)
+
+        model.disconnectDestination()
+    }
+#endif
 }

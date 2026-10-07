@@ -128,14 +128,22 @@ final class PersistentLogStore: @unchecked Sendable {
         let info = Bundle.main.infoDictionary ?? [:]
         let version = info["CFBundleShortVersionString"] as? String ?? "unknown"
         let build = info["CFBundleVersion"] as? String ?? "unknown"
+#if targetEnvironment(macCatalyst)
+        let versionInfo = ProcessInfo.processInfo.operatingSystemVersion
+        let deviceName = "Mac"
+        let systemName = "macOS \(versionInfo.majorVersion).\(versionInfo.minorVersion)"
+#else
         let device = UIDevice.current
+        let deviceName = device.model
+        let systemName = "\(device.systemName) \(device.systemVersion)"
+#endif
         return """
         PODBRIDGE DIAGNOSTICS
         Exported: \(exportFormatter.string(from: Date()))
         App: \(version) (\(build))
         Bundle: \(Bundle.main.bundleIdentifier ?? "unknown")
-        Device: \(device.model)
-        System: \(device.systemName) \(device.systemVersion)
+        Device: \(deviceName)
+        System: \(systemName)
         Privacy: contains selected filenames and playlist names, but not absolute paths, FirewireGuid, or media contents.
         ================================================================================
 
