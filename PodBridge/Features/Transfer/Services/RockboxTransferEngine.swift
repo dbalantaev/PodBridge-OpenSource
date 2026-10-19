@@ -29,7 +29,6 @@ enum RockboxTransferEngine {
         progress: @escaping @Sendable (Int) async -> Void
     ) async throws -> CopyResult {
         try await Task.detached(priority: .userInitiated) {
-            let manager = FileManager.default
             let destinationRoot = destination.standardizedFileURL.path
             for source in sources {
                 let sourceRoot = source.standardizedFileURL.path
