@@ -5,6 +5,7 @@ import XCTest
 @testable import PodBridge
 
 final class PersistentLogStoreTests: XCTestCase {
+    @MainActor
     func testLogPersistsAcrossStoreInstancesAndExportsDiagnostics() throws {
         let manager = FileManager.default
         let root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

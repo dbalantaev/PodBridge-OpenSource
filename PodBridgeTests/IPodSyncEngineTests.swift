@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 Dmitry Balantaev
 
+import AVFoundation
+import ImageIO
 import XCTest
 @testable import PodBridge
 
@@ -18,9 +20,98 @@ final class IPodSyncEngineTests: XCTestCase {
         XCTAssertEqual(first.copiedTracks, 1)
         XCTAssertNotEqual(first.folderURL, second.folderURL)
         let exported = first.folderURL.appendingPathComponent("Artist/Album/01 - Delete Me.wav")
-        XCTAssertEqual(try Data(contentsOf: exported), fixture.audio)
+        let exportedData = try Data(contentsOf: exported)
+        XCTAssertEqual(exportedData.ascii(at: 0, length: 4), "RIFF")
+        XCTAssertNotNil(exportedData.range(of: Data("TIT2".utf8)))
+        XCTAssertNotNil(exportedData.range(of: Data("Delete Me".utf8)))
+        XCTAssertNotNil(exportedData.range(of: Data(repeating: 128, count: 800)))
         XCTAssertEqual(try Data(contentsOf: fixture.audioURL), fixture.audio)
         XCTAssertEqual(try Data(contentsOf: fixture.databaseURL), fixture.originalDatabase)
+    }
+
+    func testExportRestoresCachedArtworkIntoAudioAndWritesPNGCopy() async throws {
+        let fixture = try makeDeletionFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: destination) }
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        let png = try onePixelPNG()
+        var track = fixture.track
+        track.artworkImageID = 64
+        track.artworkByteCount = UInt32(png.count)
+        track.artworkData = png
+        let backup = fixture.root.appendingPathComponent("artwork-backup", isDirectory: true)
+        try FileManager.default.createDirectory(at: backup, withIntermediateDirectories: true)
+        let plan = try XCTUnwrap(ArtworkDatabase.prepare(root: fixture.root, tracks: [track]))
+        try ArtworkDatabase.apply(plan, backupFolder: backup)
+
+        let export = try await IPodSyncEngine.exportTracks(
+            [track],
+            root: fixture.root,
+            destinationFolder: destination
+        ) { _ in }
+        let audioURL = export.folderURL.appendingPathComponent("Artist/Album/01 - Delete Me.wav")
+        let coverURL = export.folderURL.appendingPathComponent("Artist/Album/01 - Delete Me.cover.png")
+        let audio = try Data(contentsOf: audioURL)
+        let cover = try Data(contentsOf: coverURL)
+
+        XCTAssertNotNil(audio.range(of: Data("APIC".utf8)))
+        XCTAssertNotNil(CGImageSourceCreateWithData(cover as CFData, nil))
+        let manifestURL = export.folderURL.appendingPathComponent("PodBridge Library.json")
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let manifest = try decoder.decode(
+            IPodSyncEngine.ExportLibrary.self,
+            from: Data(contentsOf: manifestURL)
+        )
+        XCTAssertEqual(manifest.tracks.first?.artworkRelativePath, "Artist/Album/01 - Delete Me.cover.png")
+    }
+
+    func testExportWritesCurrentMetadataAndCachedArtworkIntoM4A() async throws {
+        let fixture = try makeDeletionFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: destination) }
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        let sourceM4A = fixture.audioURL.deletingPathExtension().appendingPathExtension("m4a")
+        let bundledM4A = try XCTUnwrap(
+            Bundle(for: Self.self).url(forResource: "export-source", withExtension: "m4a")
+        )
+        try FileManager.default.copyItem(at: bundledM4A, to: sourceM4A)
+        let originalM4A = try Data(contentsOf: sourceM4A)
+
+        let png = try onePixelPNG()
+        var track = fixture.track
+        track.title = "Current iPod Title"
+        track.genre = "Electronic"
+        track.ipodPath = ":iPod_Control:Music:F00:DELETE.m4a"
+        track.byteCount = UInt32(try sourceM4A.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
+        track.fileType = "AAC audio file"
+        track.artworkImageID = 64
+        track.artworkByteCount = UInt32(png.count)
+        track.artworkData = png
+        let backup = fixture.root.appendingPathComponent("artwork-backup", isDirectory: true)
+        try FileManager.default.createDirectory(at: backup, withIntermediateDirectories: true)
+        let plan = try XCTUnwrap(ArtworkDatabase.prepare(root: fixture.root, tracks: [track]))
+        try ArtworkDatabase.apply(plan, backupFolder: backup)
+
+        let export = try await IPodSyncEngine.exportTracks(
+            [track],
+            root: fixture.root,
+            destinationFolder: destination
+        ) { _ in }
+        let audioURL = export.folderURL.appendingPathComponent("Artist/Album/01 - Current iPod Title.m4a")
+        let metadata = try await AVURLAsset(url: audioURL).load(.commonMetadata)
+        let titleItem = try XCTUnwrap(metadata.first { $0.commonKey == .commonKeyTitle })
+        let artworkItem = try XCTUnwrap(metadata.first { $0.commonKey == .commonKeyArtwork })
+        let exportedTitle = try await titleItem.load(.stringValue)
+        let exportedArtwork = try await artworkItem.load(.dataValue)
+
+        XCTAssertEqual(exportedTitle, "Current iPod Title")
+        XCTAssertNotNil(exportedArtwork)
+        XCTAssertEqual(try Data(contentsOf: sourceM4A), originalM4A)
     }
 
     func testExportWritesStatisticsJSONCSVAndPlaylistM3U8ThenImportsJSON() async throws {
@@ -1449,7 +1540,30 @@ private actor AlbumRepairProgressRecorder {
 }
 
 private final class ArtworkURLProtocol: URLProtocol {
-    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    private final class HandlerStorage: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+        var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+            get {
+                lock.lock()
+                defer { lock.unlock() }
+                return value
+            }
+            set {
+                lock.lock()
+                defer { lock.unlock() }
+                value = newValue
+            }
+        }
+    }
+
+    private static let handlerStorage = HandlerStorage()
+
+    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+        get { handlerStorage.handler }
+        set { handlerStorage.handler = newValue }
+    }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }

@@ -1,0 +1,353 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 Dmitry Balantaev
+
+import Foundation
+
+/// Scans source folders and prepares ordered audio and playlist inputs for sync.
+///
+/// This type does not modify the destination. Apple-library writes belong to
+/// `IPodSyncEngine`; direct Rockbox copies belong to `RockboxTransferEngine`.
+enum MusicTransferEngine {
+    /// File extensions accepted by the source scanner.
+    static let supportedExtensions: Set<String> = [
+        "aac", "aif", "aiff", "m4a", "m4b", "mp3", "wav",
+    ]
+    private static let knownUnsupportedAudioExtensions: Set<String> = [
+        "ape", "flac", "mka", "ogg", "opus", "wma", "webm"
+    ]
+
+    /// Recursively scans a source folder and returns supported audio in stable order.
+    static func scan(folder: URL) async throws -> [MusicFile] {
+        try await scanWithReport(folder: folder).files
+    }
+
+    static func scanWithReport(folder: URL) async throws -> SourceScanReport {
+        try await Task.detached(priority: .userInitiated) {
+            let access = folder.startAccessingSecurityScopedResource()
+            defer {
+                if access { folder.stopAccessingSecurityScopedResource() }
+            }
+
+            let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .nameKey]
+            let candidates = try recursiveFiles(at: folder, keys: keys)
+            AppLogger.scan("Recursive source enumeration files=\(candidates.count)", level: .debug)
+
+            let rootPath = folder.standardizedFileURL.path
+            var files: [MusicFile] = []
+            var skippedAudioByExtension: [String: Int] = [:]
+
+            for fileURL in candidates {
+                try Task.checkCancellation()
+                let fileExtension = fileURL.pathExtension.lowercased()
+                guard supportedExtensions.contains(fileExtension) else {
+                    if knownUnsupportedAudioExtensions.contains(fileExtension) {
+                        skippedAudioByExtension[fileExtension, default: 0] += 1
+                    }
+                    continue
+                }
+                let values = try fileURL.resourceValues(forKeys: Set(keys))
+                guard values.isRegularFile == true else { continue }
+
+                let standardizedPath = fileURL.standardizedFileURL.path
+                let prefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+                let relativePath = standardizedPath.hasPrefix(prefix)
+                    ? String(standardizedPath.dropFirst(prefix.count))
+                    : fileURL.lastPathComponent
+
+                files.append(
+                    MusicFile(
+                        sourceURL: fileURL,
+                        relativePath: relativePath,
+                        byteCount: Int64(values.fileSize ?? 0),
+                        preview: nil
+                    )
+                )
+            }
+
+            // Import review should speak in music metadata, not opaque filenames.
+            // A failed/absent tag is harmless: the UI falls back to the filename.
+            for index in files.indices {
+                try Task.checkCancellation()
+                let file = files[index]
+                files[index] = MusicFile(
+                    sourceURL: file.sourceURL,
+                    relativePath: file.relativePath,
+                    byteCount: file.byteCount,
+                    preview: await AudioMetadataReader.preview(file)
+                )
+            }
+
+            let result = files.sorted {
+                $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending
+            }
+            AppLogger.scan("Supported audio enumeration tracks=\(result.count)", level: .debug)
+            return SourceScanReport(files: result, skippedAudioByExtension: skippedAudioByExtension)
+        }.value
+    }
+
+    /// Parses in-folder `.m3u` and `.m3u8` files against the scanned audio list.
+    static func scanPlaylists(folder: URL, files: [MusicFile]) async throws -> [SourcePlaylist] {
+        try await Task.detached(priority: .userInitiated) {
+            let access = folder.startAccessingSecurityScopedResource()
+            defer { if access { folder.stopAccessingSecurityScopedResource() } }
+
+            let root = folder.standardizedFileURL.resolvingSymlinksInPath()
+            let rootPrefix = root.path.hasSuffix("/") ? root.path : root.path + "/"
+            let fileIndices = Dictionary(uniqueKeysWithValues: files.enumerated().map {
+                ($0.element.sourceURL.standardizedFileURL.resolvingSymlinksInPath().path, $0.offset)
+            })
+            let candidates = try recursiveFiles(at: root, keys: [.isRegularFileKey])
+
+            var playlists: [SourcePlaylist] = []
+            for playlistURL in candidates {
+                try Task.checkCancellation()
+                guard ["m3u", "m3u8"].contains(playlistURL.pathExtension.lowercased()),
+                      (try? playlistURL.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true,
+                      let text = try? String(contentsOf: playlistURL, encoding: .utf8) else { continue }
+                var name = playlistURL.deletingPathExtension().lastPathComponent
+                var ordered: [Int] = []
+                var ignoredReferences = 0
+                for rawLine in text.components(separatedBy: .newlines) {
+                    let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if line.hasPrefix("#PLAYLIST:") {
+                        let candidate = String(line.dropFirst("#PLAYLIST:".count)).trimmingCharacters(in: .whitespaces)
+                        if !candidate.isEmpty { name = candidate }
+                        continue
+                    }
+                    guard !line.isEmpty, !line.hasPrefix("#") else { continue }
+                    guard !line.contains("\0") else {
+                        ignoredReferences += 1
+                        continue
+                    }
+                    guard let index = playlistFileIndex(
+                        reference: line,
+                        playlistURL: playlistURL,
+                        rootPrefix: rootPrefix,
+                        exactFileIndices: fileIndices,
+                        files: files
+                    ) else {
+                        ignoredReferences += 1
+                        continue
+                    }
+                    ordered.append(index)
+                }
+                AppLogger.scan(
+                    "Playlist parsed name=\(name) tracks=\(ordered.count) ignoredReferences=\(ignoredReferences)",
+                    level: ignoredReferences == 0 ? .debug : .info
+                )
+                if !ordered.isEmpty { playlists.append(SourcePlaylist(name: name, fileIndices: ordered)) }
+            }
+            return playlists.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        }.value
+    }
+
+    static func importSelection(
+        files: [MusicFile],
+        playlists: [SourcePlaylist],
+        selectedIDs: Set<String>
+    ) -> SourceImportSelection {
+        let keptOldIndices = files.indices.filter { selectedIDs.contains(files[$0].id) }
+        let newIndexByOldIndex = Dictionary(uniqueKeysWithValues: keptOldIndices.enumerated().map { ($0.element, $0.offset) })
+        let selectedFiles = keptOldIndices.map { files[$0] }
+        let selectedPlaylists = playlists.compactMap { playlist -> SourcePlaylist? in
+            let remapped = playlist.fileIndices.compactMap { newIndexByOldIndex[$0] }
+            guard !remapped.isEmpty else { return nil }
+            return SourcePlaylist(
+                name: playlist.name,
+                fileIndices: remapped,
+                artworkData: playlist.artworkData,
+                artworkFilename: playlist.artworkFilename
+            )
+        }
+        return SourceImportSelection(files: selectedFiles, playlists: selectedPlaylists)
+    }
+
+    private static func playlistFileIndex(
+        reference rawReference: String,
+        playlistURL: URL,
+        rootPrefix: String,
+        exactFileIndices: [String: Int],
+        files: [MusicFile]
+    ) -> Int? {
+        var reference = rawReference.trimmingCharacters(in: .whitespacesAndNewlines)
+        if reference.count >= 2,
+           (reference.hasPrefix("\"") && reference.hasSuffix("\"") ||
+            reference.hasPrefix("'") && reference.hasSuffix("'")) {
+            reference.removeFirst()
+            reference.removeLast()
+        }
+        reference = reference.removingPercentEncoding ?? reference
+
+        let path: String
+        if reference.lowercased().hasPrefix("file://"), let fileURL = URL(string: reference), fileURL.isFileURL {
+            path = fileURL.path
+        } else {
+            guard !reference.contains("://") else { return nil }
+            path = reference.replacingOccurrences(of: "\\", with: "/")
+        }
+
+        let isWindowsAbsolute = path.count >= 3 && path[path.index(path.startIndex, offsetBy: 1)] == ":" && path[path.index(path.startIndex, offsetBy: 2)] == "/"
+        let isAbsolute = path.hasPrefix("/") || isWindowsAbsolute
+        if !isWindowsAbsolute {
+            let target = (isAbsolute ? URL(fileURLWithPath: path) : playlistURL.deletingLastPathComponent().appendingPathComponent(path))
+                .standardizedFileURL
+                .resolvingSymlinksInPath()
+            if target.path.hasPrefix(rootPrefix), let index = exactFileIndices[target.path] {
+                return index
+            }
+            if !isAbsolute, path.split(separator: "/").contains("..") {
+                return nil
+            }
+        }
+
+        let referenceComponents = normalizedPlaylistPath(path).split(separator: "/").map(String.init)
+        guard !referenceComponents.isEmpty else { return nil }
+        var bestLength = 0
+        var bestIndices: [Int] = []
+        for (index, file) in files.enumerated() {
+            let fileComponents = normalizedPlaylistPath(file.relativePath).split(separator: "/").map(String.init)
+            let matched = commonSuffixLength(referenceComponents, fileComponents)
+            guard matched > 0 else { continue }
+            if matched > bestLength {
+                bestLength = matched
+                bestIndices = [index]
+            } else if matched == bestLength {
+                bestIndices.append(index)
+            }
+        }
+        return bestIndices.count == 1 ? bestIndices[0] : nil
+    }
+
+    private static func normalizedPlaylistPath(_ value: String) -> String {
+        value.replacingOccurrences(of: "\\", with: "/")
+            .folding(
+                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                locale: Locale(identifier: "en_US_POSIX")
+            )
+    }
+
+    private static func commonSuffixLength(_ lhs: [String], _ rhs: [String]) -> Int {
+        var count = 0
+        while count < lhs.count, count < rhs.count,
+              lhs[lhs.count - 1 - count] == rhs[rhs.count - 1 - count] {
+            count += 1
+        }
+        return count
+    }
+
+    private static func recursiveFiles(at root: URL, keys: [URLResourceKey]) throws -> [URL] {
+        var directories = [root]
+        var files: [URL] = []
+        let requested = Set(keys).union([.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey, .nameKey])
+        while let directory = directories.popLast() {
+            let children = try FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: Array(requested),
+                options: [.skipsHiddenFiles]
+            )
+            for child in children {
+                let values = try child.resourceValues(forKeys: requested)
+                if values.isSymbolicLink == true { continue }
+                if values.isDirectory == true { directories.append(child) }
+                else if values.isRegularFile == true { files.append(child) }
+            }
+        }
+        return files
+    }
+
+    static func prepareImportFolder(destination: URL) throws -> URL {
+        let importFolder = destination.appendingPathComponent("PodBridge Imports", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(
+                at: importFolder,
+                withIntermediateDirectories: true
+            )
+            return importFolder
+        } catch {
+            throw PodBridgeError.cannotCreateImportFolder
+        }
+    }
+
+    static func copy(file: MusicFile, to importFolder: URL) throws -> URL {
+        try Task.checkCancellation()
+        let relativeNSString = file.relativePath as NSString
+        let relativeDirectory = relativeNSString.deletingLastPathComponent
+        let destinationDirectory = relativeDirectory
+            .split(separator: "/")
+            .reduce(importFolder) { partial, component in
+                partial.appendingPathComponent(TransferFileNaming.sanitizedSegment(String(component)), isDirectory: true)
+            }
+
+        try FileManager.default.createDirectory(
+            at: destinationDirectory,
+            withIntermediateDirectories: true
+        )
+
+        let safeName = TransferFileNaming.sanitizedFilename(file.name)
+        let destinationURL = TransferFileNaming.availableDestination(
+            in: destinationDirectory,
+            filename: safeName
+        )
+        try FileManager.default.copyItem(at: file.sourceURL, to: destinationURL)
+        return destinationURL
+    }
+
+}
+
+#if PODBRIDGE_ALACARTE
+struct ALACarteSourceBatch: Sendable {
+    let files: [MusicFile]
+    let playlists: [SourcePlaylist]
+    let downloadedFolders: [URL]
+}
+
+enum ALACarteSourceDownloader {
+    static func download(
+        items: [ALACarteLibraryItem],
+        using client: ALACarteClient,
+        progress: @escaping @Sendable (
+            _ itemIndex: Int,
+            _ item: ALACarteLibraryItem,
+            _ completed: Int,
+            _ total: Int
+        ) async -> Void
+    ) async throws -> ALACarteSourceBatch {
+        var downloadedFolders: [URL] = []
+        do {
+            var combinedFiles: [MusicFile] = []
+            var combinedPlaylists: [SourcePlaylist] = []
+
+            for (itemIndex, item) in items.enumerated() {
+                try Task.checkCancellation()
+                let folder = try await client.download(item) { completed, total in
+                    await progress(itemIndex, item, completed, total)
+                }
+                downloadedFolders.append(folder)
+
+                let found = try await MusicTransferEngine.scan(folder: folder)
+                let foundPlaylists = try await MusicTransferEngine.scanPlaylists(folder: folder, files: found)
+                guard !found.isEmpty else { throw ALACarteError.noCompatibleAudio }
+
+                let fileOffset = combinedFiles.count
+                combinedFiles.append(contentsOf: found)
+                combinedPlaylists.append(contentsOf: foundPlaylists.map { playlist in
+                    SourcePlaylist(
+                        name: playlist.name,
+                        fileIndices: playlist.fileIndices.map { $0 + fileOffset },
+                        artworkData: playlist.artworkData
+                    )
+                })
+            }
+
+            return ALACarteSourceBatch(
+                files: combinedFiles,
+                playlists: combinedPlaylists,
+                downloadedFolders: downloadedFolders
+            )
+        } catch {
+            for folder in downloadedFolders { try? FileManager.default.removeItem(at: folder) }
+            throw error
+        }
+    }
+}
+#endif

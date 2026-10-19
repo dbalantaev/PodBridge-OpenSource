@@ -4,9 +4,9 @@
   Copy music from Files on your iPhone or iPad straight to a click-wheel iPod.
 </p>
 
-For code ownership and contributor workflow, see [ARCHITECTURE.md](ARCHITECTURE.md),
+The project uses Swift 6. For code ownership and contributor workflow, see [ARCHITECTURE.md](ARCHITECTURE.md),
 [AGENTS.md](AGENTS.md), and the [maintainer knowledge base](Documentation/AgentContext/ProjectKnowledge.md).
-Run `Scripts/lint.sh` to check Swift style when SwiftLint is installed.
+Run `Scripts/lint.sh` to check Swift style with SwiftLint 0.65 or later.
 
 <p align="center">
   <img src="https://img.shields.io/badge/iOS-17%2B-007AFF?style=flat-square" alt="iOS 17+">
@@ -19,17 +19,24 @@ Run `Scripts/lint.sh` to check Swift style when SwiftLint is installed.
   <a href="#getting-started">Getting started</a> ·
   <a href="#podbridgealacarte-self-hosted-build">ALACarte</a> ·
   <a href="#supported-ipods">Supported iPods</a> ·
+  <a href="#project-structure">Project structure</a> ·
   <a href="#safety-and-backups">Safety</a> ·
   <a href="PRIVACY.md">Privacy</a> ·
   <a href="#license">License</a> ·
   <a href="#building-the-project">Building</a>
 </p>
 
+## In the app
+
 <p align="center">
-  <img src="Documentation/Screenshots/AppStore/01-connect-ipod-1284x2778.png" width="230" alt="PodBridge connection screen">
-  <img src="Documentation/Screenshots/AppStore/02-add-music-library-1284x2778.png" width="230" alt="PodBridge import and library screen">
-  <img src="Documentation/Screenshots/AppStore/03-library-tools-1284x2778.png" width="230" alt="PodBridge library tools screen">
+  <img src="Documentation/Screenshots/README/connect-ipod.png" width="210" alt="PodBridge iPod connection screen">
+  <img src="Documentation/Screenshots/README/home-workflows.png" width="210" alt="PodBridge home screen with transfer, Rockbox, ALACarte, and library actions">
+  <img src="Documentation/Screenshots/AppStore/03-library-tools-1284x2778.png" width="210" alt="PodBridge library tools screen">
 </p>
+
+The connected-home screenshot was captured in a development build with a
+disposable demo iPod. The **ALACarte** action appears only in the separate
+`PodBridgeALACarte` target.
 
 PodBridge lets you add music to a stock-firmware click-wheel iPod without going
 back to a desktop sync app every time. Pick a folder on your iPhone or iPad, select the
@@ -58,11 +65,37 @@ single track before transferring a large folder.
   existing library, playlists, and artwork intact.
 - Includes Library Tools for browsing the iPod library, finding duplicates,
   completing metadata, and fixing missing artwork.
+- Exports albums or the library into artist and album folders, restores the
+  current iPod metadata in each supported audio file, and embeds the best cover
+  available in the iPod artwork cache. The same reduced-resolution cover is
+  also saved as a PNG beside the track.
 - Shows model-specific iPod artwork plus the selected model, song count, total
   capacity, used space, free space, and a storage bar.
 - Can look up missing artwork through MusicBrainz and the Cover Art Archive.
 - The optional `PodBridgeALACarte` target can browse and import from your own
-  ALACarte server. No developer-operated server is configured or used.
+  ALACarte server, either into the native iPod library or directly into
+  Rockbox `/Music`. No developer-operated server is configured or used.
+
+## Project structure
+
+PodBridge is one Swift 6 Xcode project with two app targets and a shared test
+target. The source tree is organised by ownership, not by artificial layers:
+
+| Area | Responsibility |
+| --- | --- |
+| `PodBridge/Application` | App startup and root SwiftUI composition. |
+| `PodBridge/Core` | iTunesDB, artwork, signing, diagnostics, and shared UI infrastructure. |
+| `PodBridge/Features/Transfer` | Source scanning, metadata reading, transfer review, device connection, and Rockbox copies. |
+| `PodBridge/Features/Library` | Existing-library browsing, editing, export, artwork, imports, and recoverable deletion. |
+| `PodBridge/Features/ALACarte` | Self-hosted ALACarte integration compiled only into `PodBridgeALACarte`. |
+| `PodBridgeTests` | Fixture-based coverage for database, artwork, transfer, diagnostics, and ALACarte contracts. |
+
+`MusicTransferViewModel` owns user-flow state and cancellation. `IPodSyncEngine`
+is the only boundary for operations that alter the Apple iPod library. Direct
+Rockbox copies use `RockboxTransferEngine` and do not read or modify `iTunesDB`.
+The detailed ownership map and transaction rules are in
+[ARCHITECTURE.md](ARCHITECTURE.md); the maintainer map, documentation system,
+and release checks are in [Documentation/README.md](Documentation/README.md).
 
 ## Supported iPods
 
@@ -200,9 +233,10 @@ server's full web interface, and imports compatible files already present in
 its library. It is intended for installation directly from Xcode or another
 sideloading workflow, not for the TestFlight/App Store build.
 
-The standard `PodBridge` target does not compile `ALACarteIntegration.swift`,
-does not show ALACarte UI, and does not include the local-network usage
-description. The two targets share the iPod database and transfer engine.
+The standard `PodBridge` target does not compile the files under
+`Features/ALACarte`, does not show ALACarte UI, and does not include the
+local-network usage description. The two targets share the iPod database and
+transfer engine.
 
 Use the [PodBridge-compatible ALACarte fork](https://github.com/dbalantaev/alacarte):
 

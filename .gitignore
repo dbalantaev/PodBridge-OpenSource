@@ -37,5 +37,10 @@ Config/*.local.xcconfig
 
 # Local screenshots exported into the repository root
 /Screenshot*.png
-/Снимок экрана*.png
-/Изображение Codex*.png
+
+# Local Codex task state, skills, and temporary artifacts
+/.agents/
+/Local/agent-state/
+/Local/artifacts/
+/portable-agent-kit/
+/portable-agent-kit-*.zip

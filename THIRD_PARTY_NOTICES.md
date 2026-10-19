@@ -1,6 +1,6 @@
 # Third-party notices
 
-The Hash58 implementation in `PodBridge/Hash58.swift` follows the algorithm
+The Hash58 implementation in `PodBridge/Core/Database/Hash58.swift` follows the algorithm
 documented by the libgpod project in `src/itdb_hash58.c`.
 
 Copyright (C) 2007 Christophe Fergeau <teuf@gnome.org>

@@ -156,7 +156,12 @@ final class ALACarteClientTests: XCTestCase {
 }
 
 private final class ALACarteURLProtocolStub: URLProtocol {
-    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    private static let handlerStorage = ALACarteHandlerStorage()
+
+    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+        get { handlerStorage.value }
+        set { handlerStorage.value = newValue }
+    }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -177,4 +182,22 @@ private final class ALACarteURLProtocolStub: URLProtocol {
     }
 
     override func stopLoading() {}
+}
+
+private final class ALACarteHandlerStorage: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedValue: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    var value: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return storedValue
+        }
+        set {
+            lock.lock()
+            storedValue = newValue
+            lock.unlock()
+        }
+    }
 }

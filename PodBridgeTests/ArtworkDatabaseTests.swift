@@ -53,6 +53,26 @@ final class ArtworkDatabaseTests: XCTestCase {
         XCTAssertFalse(manager.fileExists(atPath: coverFlow.url.path))
     }
 
+    func testExportArtworkDecodesLargestCachedRenditionAsPNG() throws {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? manager.removeItem(at: root) }
+        try manager.createDirectory(at: root, withIntermediateDirectories: true)
+        let track = makeTrack(id: 1, artworkID: 64, png: try makePNG())
+        let backup = root.appendingPathComponent("backup", isDirectory: true)
+        try manager.createDirectory(at: backup, withIntermediateDirectories: true)
+        let plan = try XCTUnwrap(ArtworkDatabase.prepare(root: root, tracks: [track]))
+        try ArtworkDatabase.apply(plan, backupFolder: backup)
+
+        let exported = try ArtworkDatabase.exportArtwork(root: root, databaseIDs: [track.databaseID])
+        let png = try XCTUnwrap(exported[track.databaseID])
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(png as CFData, nil))
+        let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+
+        XCTAssertEqual(image.width, 320)
+        XCTAssertEqual(image.height, 320)
+    }
+
     func testArtworkAppendAndRollbackPreserveExistingDatabaseAndCacheBytes() throws {
         let manager = FileManager.default
         let root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

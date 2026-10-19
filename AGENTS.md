@@ -5,6 +5,9 @@
 PodBridge is a SwiftUI app for transferring authorized music files to supported click-wheel iPods. Read [README.md](README.md) for user-facing setup and safety guidance, [ARCHITECTURE.md](ARCHITECTURE.md) for code ownership, and the relevant topic in [Documentation/AgentContext/ProjectKnowledge.md](Documentation/AgentContext/ProjectKnowledge.md) before changing behavior. Keep project documentation in English.
 
 This is a single Xcode project with the `PodBridge`, `PodBridgeALACarte`, and `PodBridgeTests` targets. The two app targets share the core transfer/database code; ALACarte integration belongs only to its dedicated target. Check target membership before adding or moving source files.
+All targets use Swift 6 language mode.
+
+Source is a feature-oriented monolith: `Application` owns startup and root presentation, `Core` contains reusable database, diagnostics, and UI infrastructure, and `Features` contains the transfer, library, settings, and ALACarte workflows. Within a feature, use `Models`, `Services`, `ViewModels`, and `Views` when each has a clear responsibility. Do not introduce `Data`, `Domain`, `Presentation`, or module-like folder layers without an actual ownership boundary.
 
 ## Required workflow
 
@@ -37,7 +40,7 @@ This is a single Xcode project with the `PodBridge`, `PodBridgeALACarte`, and `P
 
 ## Swift style and tooling
 
-- Follow `.swiftlint.yml`; do not add blanket suppressions to make existing violations disappear.
+- Follow `.swiftlint.yml`; do not add blanket suppressions to make existing violations disappear. `.swiftlint-baseline.json` records existing findings while strict lint blocks new ones. Remove baseline entries as findings are fixed.
 - Prefer small, cohesive types and explicit dependencies. Avoid clever abstractions in binary-format code.
 - Document non-obvious binary layouts, checksums, transaction stages, and compatibility decisions at the point where they are maintained.
 - Add or update focused tests for changes to parsing, serialization, checksums, transaction ordering, cleanup, and rollback.
@@ -57,3 +60,11 @@ xcodebuild -project PodBridge.xcodeproj -scheme PodBridge \
 ```
 
 Use `Scripts/lint.sh` for the repository lint workflow. If SwiftLint is unavailable, report that explicitly rather than silently skipping lint.
+
+## Long-running task state
+
+For a multi-phase task that must survive compaction or continuation in a new chat, use a locally installed `$stateful-work` skill when it is available. Store only a compact checkpoint in `Local/agent-state/<task>.yaml`; it is ignored by Git and never becomes a source of product or architecture requirements. Do not create task state for short answers, small edits, or ordinary code review.
+
+## Documentation system
+
+`Documentation/README.md` indexes the permanent documentation. `Documentation/WritingGuide.md` defines documentation ownership and writing rules; `Documentation/Testing/BusinessScenarioCoverage.md` records scenario coverage and known residual risks. Use the templates in `Documentation/Templates/` only for an independent feature contract or a long-lived cross-cutting decision. Keep all new documentation in English.

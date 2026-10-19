@@ -64,7 +64,7 @@ final class MusicTransferEngineTests: XCTestCase {
 
     func testFilenameSanitizationKeepsExtension() {
         XCTAssertEqual(
-            MusicTransferEngine.sanitizedFilename("Track: One?.M4A"),
+            TransferFileNaming.sanitizedFilename("Track: One?.M4A"),
             "Track_ One_.m4a"
         )
     }
@@ -140,6 +140,31 @@ final class MusicTransferEngineTests: XCTestCase {
 
         XCTAssertEqual(playlists.count, 1)
         XCTAssertEqual(playlists[0].fileIndices.map { files[$0].name }, ["02 Second Song.m4a", "01 First Song.m4a"])
+    }
+
+    func testRockboxCopyCombinesDownloadedFoldersWithoutOverwritingCollisions() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let first = root.appendingPathComponent("First/Album", isDirectory: true)
+        let second = root.appendingPathComponent("Second/Album", isDirectory: true)
+        let destination = root.appendingPathComponent("iPod/Music", isDirectory: true)
+        try FileManager.default.createDirectory(at: first, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: second, withIntermediateDirectories: true)
+        try Data("first".utf8).write(to: first.appendingPathComponent("Song.m4a"))
+        try Data("second".utf8).write(to: second.appendingPathComponent("Song.m4a"))
+
+        let result = try await RockboxTransferEngine.copyFolderContents(
+            from: [first.deletingLastPathComponent(), second.deletingLastPathComponent()],
+            to: destination
+        ) { _ in }
+        let album = destination.appendingPathComponent("Album", isDirectory: true)
+        let copied = try FileManager.default.contentsOfDirectory(at: album, includingPropertiesForKeys: nil)
+
+        XCTAssertEqual(result.copiedFiles, 2)
+        XCTAssertEqual(result.copiedBytes, 11)
+        XCTAssertEqual(Set(copied.map(\.lastPathComponent)), ["Song.m4a", "Song (2).m4a"])
+        XCTAssertEqual(Set(try copied.map { try Data(contentsOf: $0) }), [Data("first".utf8), Data("second".utf8)])
     }
 
 #if DEBUG || PODBRIDGE_DEMO

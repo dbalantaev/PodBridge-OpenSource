@@ -240,8 +240,8 @@ final class ClassicDatabaseTests: XCTestCase {
         original = try Hash58.sign(original, firewireID: firewireID)
         let oldTrackRecord = try record(tag: "mhit", in: original, occurrence: 0)
         let oldPlaylistRecord = try record(tag: "mhyp", in: original, occurrence: 1)
-        guard let masterTag = original.range(of: Data("mhyp".utf8)) else { throw PodBridgeError.invalidDatabase }
-        original[masterTag.lowerBound + 60] = 0xa5
+        guard let primaryTag = original.range(of: Data("mhyp".utf8)) else { throw PodBridgeError.invalidDatabase }
+        original[primaryTag.lowerBound + 60] = 0xa5
         original = try Hash58.sign(original, firewireID: firewireID)
 
         let addition = track(id: 0, title: "New", artist: "New Artist", album: "New Album")
@@ -252,11 +252,13 @@ final class ClassicDatabaseTests: XCTestCase {
         XCTAssertNotNil(result.data.range(of: unknown.data))
         XCTAssertEqual(result.library.tracks.map(\.title), ["Old", "New"])
         XCTAssertEqual(result.library.playlists, library.playlists)
-        guard let mergedMasterTag = result.data.range(of: Data("mhyp".utf8)) else { throw PodBridgeError.invalidDatabase }
-        XCTAssertEqual(result.data[mergedMasterTag.lowerBound + 60], 0xa5)
+        guard let mergedPrimaryTag = result.data.range(of: Data("mhyp".utf8)) else {
+            throw PodBridgeError.invalidDatabase
+        }
+        XCTAssertEqual(result.data[mergedPrimaryTag.lowerBound + 60], 0xa5)
         let diagnostics = try ClassicDatabase.inspect(result.data, firewireID: firewireID)
-        XCTAssertTrue(diagnostics.masterPlaylistFound)
-        XCTAssertEqual(diagnostics.masterPlaylistMembers, 2)
+        XCTAssertTrue(diagnostics.primaryPlaylistFound)
+        XCTAssertEqual(diagnostics.primaryPlaylistMembers, 2)
         XCTAssertTrue(diagnostics.sortIndexesValid)
         XCTAssertTrue(diagnostics.jumpTablesValid)
         XCTAssertTrue(diagnostics.hash58Valid)
@@ -369,13 +371,13 @@ final class ClassicDatabaseTests: XCTestCase {
         XCTAssertEqual(result.library.tracks.map(\.id), [7, 11])
         XCTAssertEqual(result.library.playlists[0].trackIDs, [11, 7])
         XCTAssertEqual(result.library.playlists[1].trackIDs, [7])
-        XCTAssertEqual(diagnostics.masterPlaylistMembers, 2)
+        XCTAssertEqual(diagnostics.primaryPlaylistMembers, 2)
         XCTAssertTrue(diagnostics.playlistSectionsConsistent)
         XCTAssertTrue(diagnostics.sortIndexesValid)
         XCTAssertTrue(diagnostics.jumpTablesValid)
         XCTAssertTrue(diagnostics.hash58Valid)
         for type in [UInt32(3), UInt32(2)] {
-            XCTAssertEqual(try masterTrackIDs(sectionType: type, in: result.data), [7, 11])
+            XCTAssertEqual(try primaryTrackIDs(sectionType: type, in: result.data), [7, 11])
         }
     }
 
@@ -588,7 +590,7 @@ final class ClassicDatabaseTests: XCTestCase {
         XCTAssertEqual(result.library.playlists, [ClassicPlaylist(name: "Chosen on iPhone", trackIDs: [9, 7, 9])])
         let diagnostics = try ClassicDatabase.inspect(result.data, firewireID: firewireID)
         XCTAssertTrue(diagnostics.playlistSectionsConsistent)
-        XCTAssertEqual(diagnostics.masterPlaylistMembers, 2)
+        XCTAssertEqual(diagnostics.primaryPlaylistMembers, 2)
         XCTAssertTrue(diagnostics.hash58Valid)
     }
 
@@ -611,7 +613,7 @@ final class ClassicDatabaseTests: XCTestCase {
         XCTAssertEqual(result.library.playlists, [ClassicPlaylist(name: "Road Trip", trackIDs: [7])])
         XCTAssertTrue(try ClassicDatabase.inspect(result.data, firewireID: firewireID).hash58Valid)
         for type in [UInt32(3), UInt32(2)] {
-            XCTAssertEqual(try masterTrackIDs(sectionType: type, in: result.data), [7])
+            XCTAssertEqual(try primaryTrackIDs(sectionType: type, in: result.data), [7])
         }
     }
 
@@ -637,10 +639,10 @@ final class ClassicDatabaseTests: XCTestCase {
         XCTAssertEqual(result.library.playlists, [ClassicPlaylist(name: "Keep Me", trackIDs: [7])])
         XCTAssertEqual(result.library.tracks, [song])
         XCTAssertTrue(diagnostics.playlistSectionsConsistent)
-        XCTAssertEqual(diagnostics.masterPlaylistMembers, 1)
+        XCTAssertEqual(diagnostics.primaryPlaylistMembers, 1)
         XCTAssertTrue(diagnostics.hash58Valid)
         for type in [UInt32(3), UInt32(2)] {
-            XCTAssertEqual(try masterTrackIDs(sectionType: type, in: result.data), [7])
+            XCTAssertEqual(try primaryTrackIDs(sectionType: type, in: result.data), [7])
         }
     }
 
@@ -669,7 +671,7 @@ final class ClassicDatabaseTests: XCTestCase {
         XCTAssertEqual(result.library.tracks, [first, second, third])
         XCTAssertEqual(result.library.playlists, [ClassicPlaylist(name: "Road Trip", trackIDs: [11, 7])])
         XCTAssertTrue(diagnostics.playlistSectionsConsistent)
-        XCTAssertEqual(diagnostics.masterPlaylistMembers, 3)
+        XCTAssertEqual(diagnostics.primaryPlaylistMembers, 3)
         XCTAssertTrue(diagnostics.hash58Valid)
     }
 
@@ -704,7 +706,7 @@ final class ClassicDatabaseTests: XCTestCase {
         XCTAssertTrue(diagnostics.hash58Valid)
     }
 
-    func testMergedMasterMemberUsesNormalMusicMhipFields() throws {
+    func testMergedPrimaryMemberUsesNormalMusicMhipFields() throws {
         let old = track(id: 7, title: "Old", artist: "Artist", album: "Album")
         let library = ClassicLibrary(name: "My iPod", tracks: [old], playlists: [])
         let original = try ClassicDatabase.build(library: library, firewireID: firewireID, databaseID: 99)
@@ -733,7 +735,7 @@ final class ClassicDatabaseTests: XCTestCase {
         XCTAssertEqual(try newTrackRecord.littleUInt32(at: 0x168), 1)
 
         for type in [UInt32(3), UInt32(2)] {
-            let ids = try masterTrackIDs(sectionType: type, in: result.data)
+            let ids = try primaryTrackIDs(sectionType: type, in: result.data)
             XCTAssertEqual(ids.filter { $0 == newTrackID }.count, 1, "Every firmware playlist copy must contain the new track exactly once")
             XCTAssertEqual(ids.count, 2)
         }
@@ -865,7 +867,7 @@ final class ClassicDatabaseTests: XCTestCase {
 
         let diagnostics = try ClassicDatabase.inspect(result.data, firewireID: firewireID)
         XCTAssertTrue(diagnostics.sortIndexesValid)
-        XCTAssertEqual(diagnostics.masterPlaylistMembers, 2)
+        XCTAssertEqual(diagnostics.primaryPlaylistMembers, 2)
     }
 
     private func track(id: UInt32, title: String, artist: String, album: String) -> ClassicTrack {
@@ -953,7 +955,7 @@ final class ClassicDatabaseTests: XCTestCase {
         throw PodBridgeError.invalidDatabase
     }
 
-    private func masterTrackIDs(sectionType: UInt32, in data: Data) throws -> [UInt32] {
+    private func primaryTrackIDs(sectionType: UInt32, in data: Data) throws -> [UInt32] {
         guard let section = topLevelSection(type: sectionType, in: data) else { throw PodBridgeError.invalidDatabase }
         let list = section.lowerBound + Int(try data.littleUInt32(at: section.lowerBound + 4))
         var playlist = list + Int(try data.littleUInt32(at: list + 4))

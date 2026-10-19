@@ -34,6 +34,60 @@
 		A10000000000000000000027 /* ALACarteIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000027 /* ALACarteIntegration.swift */; };
 		A10000000000000000000028 /* ALACarteClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000028 /* ALACarteClientTests.swift */; };
 		A1000000000000000000002C /* SignatureRecovery.metal in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002C /* SignatureRecovery.metal */; };
+		A1000000000000000000002D /* RockboxTransferEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002D /* RockboxTransferEngine.swift */; };
+		A1000000000000000000002E /* TransferFileNaming.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002E /* TransferFileNaming.swift */; };
+		A1000000000000000000002F /* TransferBackgroundExecution.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002F /* TransferBackgroundExecution.swift */; };
+		A10000000000000000000030 /* IPodLibraryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000030 /* IPodLibraryViews.swift */; };
+		A10000000000000000000041 /* CommonViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000041 /* CommonViews.swift */; };
+		A10000000000000000000042 /* ConnectionAndRecoveryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000042 /* ConnectionAndRecoveryViews.swift */; };
+		A10000000000000000000043 /* TransferReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000043 /* TransferReviewViews.swift */; };
+		A10000000000000000000044 /* PodBridgeLibraryFeatureViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000044 /* PodBridgeLibraryFeatureViews.swift */; };
+		A10000000000000000000045 /* PodBridgeLibraryToolsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000045 /* PodBridgeLibraryToolsViews.swift */; };
+		A10000000000000000000046 /* SettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000046 /* SettingsViews.swift */; };
+		A10000000000000000000047 /* TransferProgressViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000047 /* TransferProgressViews.swift */; };
+		A10000000000000000000048 /* TransferCompletionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000048 /* TransferCompletionViews.swift */; };
+		A10000000000000000000049 /* IPodAlbumViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000049 /* IPodAlbumViews.swift */; };
+		A1000000000000000000004A /* OnlineArtworkPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004A /* OnlineArtworkPickerView.swift */; };
+		A1000000000000000000004B /* PlaylistEditorViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004B /* PlaylistEditorViews.swift */; };
+		A1000000000000000000004C /* IPodImportNormalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004C /* IPodImportNormalization.swift */; };
+		A1000000000000000000004D /* IPodLibraryExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004D /* IPodLibraryExport.swift */; };
+		A1000000000000000000004E /* IPodArtworkOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004E /* IPodArtworkOperations.swift */; };
+		A1000000000000000000004F /* ClassicDatabaseSerialization.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004F /* ClassicDatabaseSerialization.swift */; };
+		A10000000000000000000050 /* ClassicDatabaseParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000050 /* ClassicDatabaseParsing.swift */; };
+		A10000000000000000000051 /* MusicTransferViewModel+Rockbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000051 /* MusicTransferViewModel+Rockbox.swift */; };
+		A10000000000000000000052 /* ClassicDatabaseDeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000052 /* ClassicDatabaseDeviceIdentity.swift */; };
+		A10000000000000000000054 /* TransferPresentationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000054 /* TransferPresentationModels.swift */; };
+		A10000000000000000000055 /* IPodAlbum.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000055 /* IPodAlbum.swift */; };
+		A10000000000000000000056 /* PodBridgeHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000056 /* PodBridgeHomeView.swift */; };
+		A10000000000000000000057 /* MusicTransferViewModel+DerivedState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000057 /* MusicTransferViewModel+DerivedState.swift */; };
+		A10000000000000000000058 /* DemoIPodFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000058 /* DemoIPodFactory.swift */; };
+		A10000000000000000000059 /* LocalSignatureRecoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000059 /* LocalSignatureRecoveryService.swift */; };
+		A1000000000000000000005A /* DemoLibraryEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000005A /* DemoLibraryEditor.swift */; };
+		A1000000000000000000005B /* DemoArtworkSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000005B /* DemoArtworkSearchService.swift */; };
+		A1000000000000000000005C /* ExportAudioMetadataWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000005C /* ExportAudioMetadataWriter.swift */; };
+		A1000000000000000000005D /* Fixtures/export-source.m4a in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000005D /* Fixtures/export-source.m4a */; };
+		A1000000000000000000005E /* ArtworkDatabaseExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000005E /* ArtworkDatabaseExport.swift */; };
+		A1000000000000000000005F /* MP4AudioMetadataWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000005F /* MP4AudioMetadataWriter.swift */; };
+		A10000000000000000000060 /* ALACarteTransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000060 /* ALACarteTransferViews.swift */; };
+		A10000000000000000000061 /* ALACarteTransferService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000061 /* ALACarteTransferService.swift */; };
+		A10000000000000000000062 /* ALACarteBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000062 /* ALACarteBrowserView.swift */; };
+		A10000000000000000000063 /* ALACarteWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000063 /* ALACarteWebView.swift */; };
+		A10000000000000000000064 /* IPodSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000064 /* IPodSyncModels.swift */; };
+		A10000000000000000000065 /* ALACarteModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000065 /* ALACarteModels.swift */; };
+		A10000000000000000000066 /* ALACarteLibraryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000066 /* ALACarteLibraryRow.swift */; };
+		A10000000000000000000067 /* IPodDeletionOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000067 /* IPodDeletionOperations.swift */; };
+		A10000000000000000000068 /* IPodPermanentDeletionOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000068 /* IPodPermanentDeletionOperations.swift */; };
+		A10000000000000000000069 /* IPodDeletionRestoreOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000069 /* IPodDeletionRestoreOperations.swift */; };
+		A10000000000000000000070 /* IPodDeletionBackupStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000070 /* IPodDeletionBackupStore.swift */; };
+		A10000000000000000000071 /* MusicTransferViewModel+Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000071 /* MusicTransferViewModel+Library.swift */; };
+		A10000000000000000000072 /* MusicTransferViewModel+Artwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000072 /* MusicTransferViewModel+Artwork.swift */; };
+		A10000000000000000000073 /* MusicTransferViewModel+Connection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000073 /* MusicTransferViewModel+Connection.swift */; };
+		A10000000000000000000074 /* MusicTransferViewModel+Transfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000074 /* MusicTransferViewModel+Transfer.swift */; };
+		A10000000000000000000075 /* MusicTransferViewModel+Demo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000075 /* MusicTransferViewModel+Demo.swift */; };
+		A10000000000000000000076 /* MusicTransferViewModel+ALACarte.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000076 /* MusicTransferViewModel+ALACarte.swift */; };
+		A10000000000000000000077 /* MusicTransferViewModel+LibraryIO.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000077 /* MusicTransferViewModel+LibraryIO.swift */; };
+		A10000000000000000000078 /* MusicTransferViewModel+LibraryRepair.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000078 /* MusicTransferViewModel+LibraryRepair.swift */; };
+		A10000000000000000000079 /* MusicTransferViewModel+DeviceRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000079 /* MusicTransferViewModel+DeviceRecovery.swift */; };
 		A20000000000000000000001 /* PodBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* PodBridgeApp.swift */; };
 		A20000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* ContentView.swift */; };
 		A20000000000000000000003 /* MusicFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* MusicFile.swift */; };
@@ -54,6 +108,72 @@
 		A20000000000000000000025 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000025 /* Assets.xcassets */; };
 		A20000000000000000000026 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000026 /* PrivacyInfo.xcprivacy */; };
 		A2000000000000000000002C /* SignatureRecovery.metal in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002C /* SignatureRecovery.metal */; };
+		A2000000000000000000002D /* RockboxTransferEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002D /* RockboxTransferEngine.swift */; };
+		A2000000000000000000002E /* TransferFileNaming.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002E /* TransferFileNaming.swift */; };
+		A2000000000000000000002F /* TransferBackgroundExecution.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002F /* TransferBackgroundExecution.swift */; };
+		A20000000000000000000030 /* IPodLibraryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000030 /* IPodLibraryViews.swift */; };
+		A20000000000000000000041 /* CommonViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000041 /* CommonViews.swift */; };
+		A20000000000000000000042 /* ConnectionAndRecoveryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000042 /* ConnectionAndRecoveryViews.swift */; };
+		A20000000000000000000043 /* TransferReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000043 /* TransferReviewViews.swift */; };
+		A20000000000000000000044 /* PodBridgeLibraryFeatureViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000044 /* PodBridgeLibraryFeatureViews.swift */; };
+		A20000000000000000000045 /* PodBridgeLibraryToolsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000045 /* PodBridgeLibraryToolsViews.swift */; };
+		A20000000000000000000046 /* SettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000046 /* SettingsViews.swift */; };
+		A20000000000000000000047 /* TransferProgressViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000047 /* TransferProgressViews.swift */; };
+		A20000000000000000000048 /* TransferCompletionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000048 /* TransferCompletionViews.swift */; };
+		A20000000000000000000049 /* IPodAlbumViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000049 /* IPodAlbumViews.swift */; };
+		A2000000000000000000004A /* OnlineArtworkPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004A /* OnlineArtworkPickerView.swift */; };
+		A2000000000000000000004B /* PlaylistEditorViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004B /* PlaylistEditorViews.swift */; };
+		A2000000000000000000004C /* IPodImportNormalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004C /* IPodImportNormalization.swift */; };
+		A2000000000000000000004D /* IPodLibraryExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004D /* IPodLibraryExport.swift */; };
+		A2000000000000000000004E /* IPodArtworkOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004E /* IPodArtworkOperations.swift */; };
+		A2000000000000000000004F /* ClassicDatabaseSerialization.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004F /* ClassicDatabaseSerialization.swift */; };
+		A20000000000000000000050 /* ClassicDatabaseParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000050 /* ClassicDatabaseParsing.swift */; };
+		A20000000000000000000051 /* MusicTransferViewModel+Rockbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000051 /* MusicTransferViewModel+Rockbox.swift */; };
+		A20000000000000000000052 /* ClassicDatabaseDeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000052 /* ClassicDatabaseDeviceIdentity.swift */; };
+		A20000000000000000000054 /* TransferPresentationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000054 /* TransferPresentationModels.swift */; };
+		A20000000000000000000055 /* IPodAlbum.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000055 /* IPodAlbum.swift */; };
+		A20000000000000000000056 /* PodBridgeHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000056 /* PodBridgeHomeView.swift */; };
+		A20000000000000000000057 /* MusicTransferViewModel+DerivedState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000057 /* MusicTransferViewModel+DerivedState.swift */; };
+		A20000000000000000000058 /* DemoIPodFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000058 /* DemoIPodFactory.swift */; };
+		A20000000000000000000059 /* LocalSignatureRecoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000059 /* LocalSignatureRecoveryService.swift */; };
+		A2000000000000000000005A /* DemoLibraryEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000005A /* DemoLibraryEditor.swift */; };
+		A2000000000000000000005B /* DemoArtworkSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000005B /* DemoArtworkSearchService.swift */; };
+		A2000000000000000000005C /* ExportAudioMetadataWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000005C /* ExportAudioMetadataWriter.swift */; };
+		A2000000000000000000005E /* ArtworkDatabaseExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000005E /* ArtworkDatabaseExport.swift */; };
+		A2000000000000000000005F /* MP4AudioMetadataWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000005F /* MP4AudioMetadataWriter.swift */; };
+		A20000000000000000000064 /* IPodSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000064 /* IPodSyncModels.swift */; };
+		A20000000000000000000067 /* IPodDeletionOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000067 /* IPodDeletionOperations.swift */; };
+		A20000000000000000000068 /* IPodPermanentDeletionOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000068 /* IPodPermanentDeletionOperations.swift */; };
+		A20000000000000000000069 /* IPodDeletionRestoreOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000069 /* IPodDeletionRestoreOperations.swift */; };
+		A20000000000000000000070 /* IPodDeletionBackupStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000070 /* IPodDeletionBackupStore.swift */; };
+		A20000000000000000000071 /* MusicTransferViewModel+Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000071 /* MusicTransferViewModel+Library.swift */; };
+		A20000000000000000000072 /* MusicTransferViewModel+Artwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000072 /* MusicTransferViewModel+Artwork.swift */; };
+		A20000000000000000000073 /* MusicTransferViewModel+Connection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000073 /* MusicTransferViewModel+Connection.swift */; };
+		A20000000000000000000074 /* MusicTransferViewModel+Transfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000074 /* MusicTransferViewModel+Transfer.swift */; };
+		A20000000000000000000075 /* MusicTransferViewModel+Demo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000075 /* MusicTransferViewModel+Demo.swift */; };
+		A20000000000000000000077 /* MusicTransferViewModel+LibraryIO.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000077 /* MusicTransferViewModel+LibraryIO.swift */; };
+		A20000000000000000000078 /* MusicTransferViewModel+LibraryRepair.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000078 /* MusicTransferViewModel+LibraryRepair.swift */; };
+		A20000000000000000000079 /* MusicTransferViewModel+DeviceRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000079 /* MusicTransferViewModel+DeviceRecovery.swift */; };
+		A10000000000000000000080 /* ClassicDatabasePlayCounts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000080 /* ClassicDatabasePlayCounts.swift */; };
+		A20000000000000000000080 /* ClassicDatabasePlayCounts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000080 /* ClassicDatabasePlayCounts.swift */; };
+		A10000000000000000000081 /* ClassicDatabaseImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000081 /* ClassicDatabaseImport.swift */; };
+		A20000000000000000000081 /* ClassicDatabaseImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000081 /* ClassicDatabaseImport.swift */; };
+		A10000000000000000000082 /* ClassicDatabaseRemoval.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000082 /* ClassicDatabaseRemoval.swift */; };
+		A20000000000000000000082 /* ClassicDatabaseRemoval.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000082 /* ClassicDatabaseRemoval.swift */; };
+		A10000000000000000000083 /* ClassicDatabaseMetadataEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000083 /* ClassicDatabaseMetadataEditing.swift */; };
+		A20000000000000000000083 /* ClassicDatabaseMetadataEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000083 /* ClassicDatabaseMetadataEditing.swift */; };
+		A10000000000000000000084 /* ClassicDatabaseAlbumNormalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000084 /* ClassicDatabaseAlbumNormalization.swift */; };
+		A20000000000000000000084 /* ClassicDatabaseAlbumNormalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000084 /* ClassicDatabaseAlbumNormalization.swift */; };
+		A10000000000000000000085 /* ClassicDatabasePlaylists.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000085 /* ClassicDatabasePlaylists.swift */; };
+		A20000000000000000000085 /* ClassicDatabasePlaylists.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000085 /* ClassicDatabasePlaylists.swift */; };
+		A10000000000000000000086 /* ClassicDatabaseArtworkEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000086 /* ClassicDatabaseArtworkEditing.swift */; };
+		A20000000000000000000086 /* ClassicDatabaseArtworkEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000086 /* ClassicDatabaseArtworkEditing.swift */; };
+		A10000000000000000000087 /* ClassicDatabaseCoreOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000087 /* ClassicDatabaseCoreOperations.swift */; };
+		A20000000000000000000087 /* ClassicDatabaseCoreOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000087 /* ClassicDatabaseCoreOperations.swift */; };
+		A10000000000000000000088 /* ClassicDatabaseSorting.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000088 /* ClassicDatabaseSorting.swift */; };
+		A20000000000000000000088 /* ClassicDatabaseSorting.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000088 /* ClassicDatabaseSorting.swift */; };
+		A10000000000000000000089 /* ClassicDatabaseRecordEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000089 /* ClassicDatabaseRecordEditing.swift */; };
+		A20000000000000000000089 /* ClassicDatabaseRecordEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000089 /* ClassicDatabaseRecordEditing.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -107,6 +227,70 @@
 		B1000000000000000000002A /* PodBridgeALACarteTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PodBridgeALACarteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1000000000000000000002B /* PodBridgeALACarte-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "PodBridgeALACarte-Info.plist"; sourceTree = "<group>"; };
 		B1000000000000000000002C /* SignatureRecovery.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = SignatureRecovery.metal; sourceTree = "<group>"; };
+		B1000000000000000000002D /* RockboxTransferEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RockboxTransferEngine.swift; sourceTree = "<group>"; };
+		B1000000000000000000002E /* TransferFileNaming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferFileNaming.swift; sourceTree = "<group>"; };
+		B1000000000000000000002F /* TransferBackgroundExecution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferBackgroundExecution.swift; sourceTree = "<group>"; };
+		B10000000000000000000030 /* IPodLibraryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPodLibraryViews.swift; sourceTree = "<group>"; };
+		B10000000000000000000041 /* CommonViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommonViews.swift; sourceTree = "<group>"; };
+		B10000000000000000000042 /* ConnectionAndRecoveryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionAndRecoveryViews.swift; sourceTree = "<group>"; };
+		B10000000000000000000043 /* TransferReviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferReviewViews.swift; sourceTree = "<group>"; };
+		B10000000000000000000044 /* PodBridgeLibraryFeatureViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodBridgeLibraryFeatureViews.swift; sourceTree = "<group>"; };
+		B10000000000000000000045 /* PodBridgeLibraryToolsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodBridgeLibraryToolsViews.swift; sourceTree = "<group>"; };
+		B10000000000000000000046 /* SettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViews.swift; sourceTree = "<group>"; };
+		B10000000000000000000047 /* TransferProgressViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferProgressViews.swift; sourceTree = "<group>"; };
+		B10000000000000000000048 /* TransferCompletionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferCompletionViews.swift; sourceTree = "<group>"; };
+		B10000000000000000000049 /* IPodAlbumViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPodAlbumViews.swift; sourceTree = "<group>"; };
+		B1000000000000000000004A /* OnlineArtworkPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineArtworkPickerView.swift; sourceTree = "<group>"; };
+		B1000000000000000000004B /* PlaylistEditorViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistEditorViews.swift; sourceTree = "<group>"; };
+		B1000000000000000000004C /* IPodImportNormalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPodImportNormalization.swift; sourceTree = "<group>"; };
+		B1000000000000000000004D /* IPodLibraryExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPodLibraryExport.swift; sourceTree = "<group>"; };
+		B1000000000000000000004E /* IPodArtworkOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPodArtworkOperations.swift; sourceTree = "<group>"; };
+		B1000000000000000000004F /* ClassicDatabaseSerialization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicDatabaseSerialization.swift; sourceTree = "<group>"; };
+		B10000000000000000000050 /* ClassicDatabaseParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicDatabaseParsing.swift; sourceTree = "<group>"; };
+		B10000000000000000000051 /* MusicTransferViewModel+Rockbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MusicTransferViewModel+Rockbox.swift"; sourceTree = "<group>"; };
+		B10000000000000000000052 /* ClassicDatabaseDeviceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicDatabaseDeviceIdentity.swift; sourceTree = "<group>"; };
+		B10000000000000000000054 /* TransferPresentationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferPresentationModels.swift; sourceTree = "<group>"; };
+		B10000000000000000000055 /* IPodAlbum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPodAlbum.swift; sourceTree = "<group>"; };
+		B10000000000000000000056 /* PodBridgeHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodBridgeHomeView.swift; sourceTree = "<group>"; };
+		B10000000000000000000057 /* MusicTransferViewModel+DerivedState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MusicTransferViewModel+DerivedState.swift"; sourceTree = "<group>"; };
+		B10000000000000000000058 /* DemoIPodFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoIPodFactory.swift; sourceTree = "<group>"; };
+		B10000000000000000000059 /* LocalSignatureRecoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSignatureRecoveryService.swift; sourceTree = "<group>"; };
+		B1000000000000000000005A /* DemoLibraryEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoLibraryEditor.swift; sourceTree = "<group>"; };
+		B1000000000000000000005B /* DemoArtworkSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoArtworkSearchService.swift; sourceTree = "<group>"; };
+		B1000000000000000000005C /* ExportAudioMetadataWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportAudioMetadataWriter.swift; sourceTree = "<group>"; };
+		B1000000000000000000005D /* Fixtures/export-source.m4a */ = {isa = PBXFileReference; lastKnownFileType = audio.m4a; path = "Fixtures/export-source.m4a"; sourceTree = "<group>"; };
+		B1000000000000000000005E /* ArtworkDatabaseExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkDatabaseExport.swift; sourceTree = "<group>"; };
+		B1000000000000000000005F /* MP4AudioMetadataWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MP4AudioMetadataWriter.swift; sourceTree = "<group>"; };
+		B10000000000000000000060 /* ALACarteTransferViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ALACarteTransferViews.swift; sourceTree = "<group>"; };
+		B10000000000000000000061 /* ALACarteTransferService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ALACarteTransferService.swift; sourceTree = "<group>"; };
+		B10000000000000000000062 /* ALACarteBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ALACarteBrowserView.swift; sourceTree = "<group>"; };
+		B10000000000000000000063 /* ALACarteWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ALACarteWebView.swift; sourceTree = "<group>"; };
+		B10000000000000000000064 /* IPodSyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPodSyncModels.swift; sourceTree = "<group>"; };
+		B10000000000000000000065 /* ALACarteModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ALACarteModels.swift; sourceTree = "<group>"; };
+		B10000000000000000000066 /* ALACarteLibraryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ALACarteLibraryRow.swift; sourceTree = "<group>"; };
+		B10000000000000000000067 /* IPodDeletionOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPodDeletionOperations.swift; sourceTree = "<group>"; };
+		B10000000000000000000068 /* IPodPermanentDeletionOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPodPermanentDeletionOperations.swift; sourceTree = "<group>"; };
+		B10000000000000000000069 /* IPodDeletionRestoreOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPodDeletionRestoreOperations.swift; sourceTree = "<group>"; };
+		B10000000000000000000070 /* IPodDeletionBackupStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPodDeletionBackupStore.swift; sourceTree = "<group>"; };
+		B10000000000000000000071 /* MusicTransferViewModel+Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MusicTransferViewModel+Library.swift"; sourceTree = "<group>"; };
+		B10000000000000000000072 /* MusicTransferViewModel+Artwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MusicTransferViewModel+Artwork.swift"; sourceTree = "<group>"; };
+		B10000000000000000000073 /* MusicTransferViewModel+Connection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MusicTransferViewModel+Connection.swift"; sourceTree = "<group>"; };
+		B10000000000000000000074 /* MusicTransferViewModel+Transfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MusicTransferViewModel+Transfer.swift"; sourceTree = "<group>"; };
+		B10000000000000000000075 /* MusicTransferViewModel+Demo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MusicTransferViewModel+Demo.swift"; sourceTree = "<group>"; };
+		B10000000000000000000076 /* MusicTransferViewModel+ALACarte.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MusicTransferViewModel+ALACarte.swift"; sourceTree = "<group>"; };
+		B10000000000000000000077 /* MusicTransferViewModel+LibraryIO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MusicTransferViewModel+LibraryIO.swift"; sourceTree = "<group>"; };
+		B10000000000000000000078 /* MusicTransferViewModel+LibraryRepair.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MusicTransferViewModel+LibraryRepair.swift"; sourceTree = "<group>"; };
+		B10000000000000000000079 /* MusicTransferViewModel+DeviceRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MusicTransferViewModel+DeviceRecovery.swift"; sourceTree = "<group>"; };
+		B10000000000000000000080 /* ClassicDatabasePlayCounts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicDatabasePlayCounts.swift; sourceTree = "<group>"; };
+		B10000000000000000000081 /* ClassicDatabaseImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicDatabaseImport.swift; sourceTree = "<group>"; };
+		B10000000000000000000082 /* ClassicDatabaseRemoval.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicDatabaseRemoval.swift; sourceTree = "<group>"; };
+		B10000000000000000000083 /* ClassicDatabaseMetadataEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicDatabaseMetadataEditing.swift; sourceTree = "<group>"; };
+		B10000000000000000000084 /* ClassicDatabaseAlbumNormalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicDatabaseAlbumNormalization.swift; sourceTree = "<group>"; };
+		B10000000000000000000085 /* ClassicDatabasePlaylists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicDatabasePlaylists.swift; sourceTree = "<group>"; };
+		B10000000000000000000086 /* ClassicDatabaseArtworkEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicDatabaseArtworkEditing.swift; sourceTree = "<group>"; };
+		B10000000000000000000087 /* ClassicDatabaseCoreOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicDatabaseCoreOperations.swift; sourceTree = "<group>"; };
+		B10000000000000000000088 /* ClassicDatabaseSorting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicDatabaseSorting.swift; sourceTree = "<group>"; };
+		B10000000000000000000089 /* ClassicDatabaseRecordEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicDatabaseRecordEditing.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -154,25 +338,9 @@
 		G10000000000000000000002 /* PodBridge */ = {
 			isa = PBXGroup;
 			children = (
-				B10000000000000000000001 /* PodBridgeApp.swift */,
-				B10000000000000000000002 /* ContentView.swift */,
-				B10000000000000000000003 /* MusicFile.swift */,
-				B10000000000000000000004 /* MusicTransferEngine.swift */,
-				B10000000000000000000005 /* MusicTransferViewModel.swift */,
-				B1000000000000000000000A /* BinaryData.swift */,
-				B1000000000000000000000B /* AudioMetadataReader.swift */,
-				B1000000000000000000000C /* ClassicDatabase.swift */,
-				B1000000000000000000000D /* IPodSyncEngine.swift */,
-				B10000000000000000000010 /* ArtworkDatabase.swift */,
-				B10000000000000000000017 /* ArtworkLookupService.swift */,
-				B10000000000000000000012 /* AppLogger.swift */,
-				B10000000000000000000013 /* PersistentLogStore.swift */,
-				B10000000000000000000014 /* DiagnosticsView.swift */,
-				B10000000000000000000015 /* DebugShakeDetector.swift */,
-				B10000000000000000000023 /* IPodVolumeStore.swift */,
-				B10000000000000000000024 /* Hash58.swift */,
-				B1000000000000000000002C /* SignatureRecovery.metal */,
-				B10000000000000000000027 /* ALACarteIntegration.swift */,
+				G10000000000000000000010 /* Application */,
+				G10000000000000000000011 /* Core */,
+				G10000000000000000000012 /* Features */,
 				B1000000000000000000002B /* PodBridgeALACarte-Info.plist */,
 				B10000000000000000000025 /* Assets.xcassets */,
 				B10000000000000000000026 /* PrivacyInfo.xcprivacy */,
@@ -183,6 +351,7 @@
 		G10000000000000000000003 /* PodBridgeTests */ = {
 			isa = PBXGroup;
 			children = (
+				B1000000000000000000005D /* Fixtures/export-source.m4a */,
 				B10000000000000000000006 /* MusicTransferEngineTests.swift */,
 				B1000000000000000000000E /* ClassicDatabaseTests.swift */,
 				B1000000000000000000000F /* IPodSyncEngineTests.swift */,
@@ -202,6 +371,245 @@
 				B1000000000000000000002A /* PodBridgeALACarteTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000010 /* Application */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000001 /* PodBridgeApp.swift */,
+				B10000000000000000000002 /* ContentView.swift */,
+			);
+			path = Application;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000011 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				G10000000000000000000013 /* Database */,
+				G10000000000000000000014 /* Diagnostics */,
+				G10000000000000000000015 /* UI */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000012 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				G10000000000000000000016 /* Transfer */,
+				G10000000000000000000017 /* Library */,
+				G10000000000000000000018 /* Settings */,
+				G10000000000000000000019 /* ALACarte */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000013 /* Database */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000A /* BinaryData.swift */,
+				B1000000000000000000000C /* ClassicDatabase.swift */,
+				B10000000000000000000080 /* ClassicDatabasePlayCounts.swift */,
+				B10000000000000000000081 /* ClassicDatabaseImport.swift */,
+				B10000000000000000000082 /* ClassicDatabaseRemoval.swift */,
+				B10000000000000000000083 /* ClassicDatabaseMetadataEditing.swift */,
+				B10000000000000000000089 /* ClassicDatabaseRecordEditing.swift */,
+				B10000000000000000000084 /* ClassicDatabaseAlbumNormalization.swift */,
+				B10000000000000000000085 /* ClassicDatabasePlaylists.swift */,
+				B10000000000000000000086 /* ClassicDatabaseArtworkEditing.swift */,
+				B10000000000000000000087 /* ClassicDatabaseCoreOperations.swift */,
+				B10000000000000000000088 /* ClassicDatabaseSorting.swift */,
+				B10000000000000000000052 /* ClassicDatabaseDeviceIdentity.swift */,
+				B10000000000000000000050 /* ClassicDatabaseParsing.swift */,
+				B1000000000000000000004F /* ClassicDatabaseSerialization.swift */,
+				B10000000000000000000024 /* Hash58.swift */,
+				B10000000000000000000010 /* ArtworkDatabase.swift */,
+				B1000000000000000000005E /* ArtworkDatabaseExport.swift */,
+				B1000000000000000000002C /* SignatureRecovery.metal */,
+			);
+			path = Database;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000014 /* Diagnostics */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000012 /* AppLogger.swift */,
+				B10000000000000000000015 /* DebugShakeDetector.swift */,
+				B10000000000000000000014 /* DiagnosticsView.swift */,
+				B10000000000000000000013 /* PersistentLogStore.swift */,
+			);
+			path = Diagnostics;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000015 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000041 /* CommonViews.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000016 /* Transfer */ = {
+			isa = PBXGroup;
+			children = (
+				G10000000000000000000020 /* Models */,
+				G10000000000000000000021 /* Services */,
+				G10000000000000000000022 /* ViewModels */,
+				G10000000000000000000023 /* Views */,
+			);
+			path = Transfer;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000017 /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				G10000000000000000000029 /* Models */,
+				G10000000000000000000024 /* Services */,
+				G10000000000000000000025 /* Views */,
+			);
+			path = Library;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000018 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				G10000000000000000000026 /* Views */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000019 /* ALACarte */ = {
+			isa = PBXGroup;
+			children = (
+				G10000000000000000000027 /* Services */,
+				G10000000000000000000028 /* ViewModels */,
+			);
+			path = ALACarte;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000020 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000003 /* MusicFile.swift */,
+				B10000000000000000000054 /* TransferPresentationModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000021 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000B /* AudioMetadataReader.swift */,
+				B1000000000000000000005B /* DemoArtworkSearchService.swift */,
+				B10000000000000000000058 /* DemoIPodFactory.swift */,
+				B1000000000000000000005A /* DemoLibraryEditor.swift */,
+				B10000000000000000000059 /* LocalSignatureRecoveryService.swift */,
+				B10000000000000000000004 /* MusicTransferEngine.swift */,
+				B1000000000000000000002D /* RockboxTransferEngine.swift */,
+				B1000000000000000000002F /* TransferBackgroundExecution.swift */,
+				B1000000000000000000002E /* TransferFileNaming.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000022 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000005 /* MusicTransferViewModel.swift */,
+				B10000000000000000000072 /* MusicTransferViewModel+Artwork.swift */,
+				B10000000000000000000073 /* MusicTransferViewModel+Connection.swift */,
+				B10000000000000000000075 /* MusicTransferViewModel+Demo.swift */,
+				B10000000000000000000079 /* MusicTransferViewModel+DeviceRecovery.swift */,
+				B10000000000000000000057 /* MusicTransferViewModel+DerivedState.swift */,
+				B10000000000000000000071 /* MusicTransferViewModel+Library.swift */,
+				B10000000000000000000077 /* MusicTransferViewModel+LibraryIO.swift */,
+				B10000000000000000000078 /* MusicTransferViewModel+LibraryRepair.swift */,
+				B10000000000000000000051 /* MusicTransferViewModel+Rockbox.swift */,
+				B10000000000000000000074 /* MusicTransferViewModel+Transfer.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000023 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000042 /* ConnectionAndRecoveryViews.swift */,
+				B10000000000000000000056 /* PodBridgeHomeView.swift */,
+				B10000000000000000000048 /* TransferCompletionViews.swift */,
+				B10000000000000000000047 /* TransferProgressViews.swift */,
+				B10000000000000000000043 /* TransferReviewViews.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000024 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000005C /* ExportAudioMetadataWriter.swift */,
+				B1000000000000000000005F /* MP4AudioMetadataWriter.swift */,
+				B10000000000000000000017 /* ArtworkLookupService.swift */,
+				B1000000000000000000004E /* IPodArtworkOperations.swift */,
+				B1000000000000000000004C /* IPodImportNormalization.swift */,
+				B1000000000000000000004D /* IPodLibraryExport.swift */,
+				B10000000000000000000070 /* IPodDeletionBackupStore.swift */,
+				B10000000000000000000067 /* IPodDeletionOperations.swift */,
+				B10000000000000000000069 /* IPodDeletionRestoreOperations.swift */,
+				B10000000000000000000068 /* IPodPermanentDeletionOperations.swift */,
+				B1000000000000000000000D /* IPodSyncEngine.swift */,
+				B10000000000000000000064 /* IPodSyncModels.swift */,
+				B10000000000000000000023 /* IPodVolumeStore.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000025 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000049 /* IPodAlbumViews.swift */,
+				B10000000000000000000030 /* IPodLibraryViews.swift */,
+				B1000000000000000000004A /* OnlineArtworkPickerView.swift */,
+				B1000000000000000000004B /* PlaylistEditorViews.swift */,
+				B10000000000000000000044 /* PodBridgeLibraryFeatureViews.swift */,
+				B10000000000000000000045 /* PodBridgeLibraryToolsViews.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000026 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000046 /* SettingsViews.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000027 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000027 /* ALACarteIntegration.swift */,
+				B10000000000000000000060 /* ALACarteTransferViews.swift */,
+				B10000000000000000000061 /* ALACarteTransferService.swift */,
+				B10000000000000000000062 /* ALACarteBrowserView.swift */,
+				B10000000000000000000063 /* ALACarteWebView.swift */,
+				B10000000000000000000065 /* ALACarteModels.swift */,
+				B10000000000000000000066 /* ALACarteLibraryRow.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000028 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000076 /* MusicTransferViewModel+ALACarte.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000029 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000055 /* IPodAlbum.swift */,
+			);
+			path = Models;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -339,6 +747,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000000000000000000005D /* Fixtures/export-source.m4a in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -368,13 +777,45 @@
 				A10000000000000000000001 /* PodBridgeApp.swift in Sources */,
 				A10000000000000000000002 /* ContentView.swift in Sources */,
 				A10000000000000000000003 /* MusicFile.swift in Sources */,
+				A10000000000000000000054 /* TransferPresentationModels.swift in Sources */,
+				A10000000000000000000055 /* IPodAlbum.swift in Sources */,
+				A10000000000000000000056 /* PodBridgeHomeView.swift in Sources */,
+				A10000000000000000000057 /* MusicTransferViewModel+DerivedState.swift in Sources */,
+				A1000000000000000000005B /* DemoArtworkSearchService.swift in Sources */,
+				A10000000000000000000058 /* DemoIPodFactory.swift in Sources */,
+				A1000000000000000000005A /* DemoLibraryEditor.swift in Sources */,
+				A10000000000000000000059 /* LocalSignatureRecoveryService.swift in Sources */,
 				A10000000000000000000004 /* MusicTransferEngine.swift in Sources */,
 				A10000000000000000000005 /* MusicTransferViewModel.swift in Sources */,
+				A10000000000000000000072 /* MusicTransferViewModel+Artwork.swift in Sources */,
+				A10000000000000000000071 /* MusicTransferViewModel+Library.swift in Sources */,
+				A10000000000000000000073 /* MusicTransferViewModel+Connection.swift in Sources */,
+				A10000000000000000000075 /* MusicTransferViewModel+Demo.swift in Sources */,
+				A10000000000000000000074 /* MusicTransferViewModel+Transfer.swift in Sources */,
+				A10000000000000000000077 /* MusicTransferViewModel+LibraryIO.swift in Sources */,
+				A10000000000000000000078 /* MusicTransferViewModel+LibraryRepair.swift in Sources */,
+				A10000000000000000000079 /* MusicTransferViewModel+DeviceRecovery.swift in Sources */,
 				A1000000000000000000000A /* BinaryData.swift in Sources */,
 				A1000000000000000000000B /* AudioMetadataReader.swift in Sources */,
 				A1000000000000000000000C /* ClassicDatabase.swift in Sources */,
+				A10000000000000000000080 /* ClassicDatabasePlayCounts.swift in Sources */,
+				A10000000000000000000081 /* ClassicDatabaseImport.swift in Sources */,
+				A10000000000000000000082 /* ClassicDatabaseRemoval.swift in Sources */,
+				A10000000000000000000083 /* ClassicDatabaseMetadataEditing.swift in Sources */,
+				A10000000000000000000089 /* ClassicDatabaseRecordEditing.swift in Sources */,
+				A10000000000000000000084 /* ClassicDatabaseAlbumNormalization.swift in Sources */,
+				A10000000000000000000085 /* ClassicDatabasePlaylists.swift in Sources */,
+				A10000000000000000000086 /* ClassicDatabaseArtworkEditing.swift in Sources */,
+				A10000000000000000000087 /* ClassicDatabaseCoreOperations.swift in Sources */,
+				A10000000000000000000088 /* ClassicDatabaseSorting.swift in Sources */,
 				A1000000000000000000000D /* IPodSyncEngine.swift in Sources */,
+				A10000000000000000000070 /* IPodDeletionBackupStore.swift in Sources */,
+				A10000000000000000000067 /* IPodDeletionOperations.swift in Sources */,
+				A10000000000000000000069 /* IPodDeletionRestoreOperations.swift in Sources */,
+				A10000000000000000000068 /* IPodPermanentDeletionOperations.swift in Sources */,
+				A10000000000000000000064 /* IPodSyncModels.swift in Sources */,
 				A10000000000000000000010 /* ArtworkDatabase.swift in Sources */,
+				A1000000000000000000005E /* ArtworkDatabaseExport.swift in Sources */,
 				A10000000000000000000017 /* ArtworkLookupService.swift in Sources */,
 				A10000000000000000000012 /* AppLogger.swift in Sources */,
 				A10000000000000000000013 /* PersistentLogStore.swift in Sources */,
@@ -382,6 +823,30 @@
 				A10000000000000000000015 /* DebugShakeDetector.swift in Sources */,
 				A10000000000000000000023 /* IPodVolumeStore.swift in Sources */,
 				A10000000000000000000024 /* Hash58.swift in Sources */,
+				A1000000000000000000002D /* RockboxTransferEngine.swift in Sources */,
+				A1000000000000000000002E /* TransferFileNaming.swift in Sources */,
+				A1000000000000000000002F /* TransferBackgroundExecution.swift in Sources */,
+				A10000000000000000000030 /* IPodLibraryViews.swift in Sources */,
+				A10000000000000000000052 /* ClassicDatabaseDeviceIdentity.swift in Sources */,
+				A10000000000000000000051 /* MusicTransferViewModel+Rockbox.swift in Sources */,
+				A10000000000000000000050 /* ClassicDatabaseParsing.swift in Sources */,
+				A1000000000000000000004F /* ClassicDatabaseSerialization.swift in Sources */,
+				A1000000000000000000004E /* IPodArtworkOperations.swift in Sources */,
+				A1000000000000000000005C /* ExportAudioMetadataWriter.swift in Sources */,
+				A1000000000000000000005F /* MP4AudioMetadataWriter.swift in Sources */,
+				A1000000000000000000004D /* IPodLibraryExport.swift in Sources */,
+				A1000000000000000000004C /* IPodImportNormalization.swift in Sources */,
+				A1000000000000000000004B /* PlaylistEditorViews.swift in Sources */,
+				A10000000000000000000049 /* IPodAlbumViews.swift in Sources */,
+				A1000000000000000000004A /* OnlineArtworkPickerView.swift in Sources */,
+				A10000000000000000000041 /* CommonViews.swift in Sources */,
+				A10000000000000000000042 /* ConnectionAndRecoveryViews.swift in Sources */,
+				A10000000000000000000043 /* TransferReviewViews.swift in Sources */,
+				A10000000000000000000044 /* PodBridgeLibraryFeatureViews.swift in Sources */,
+				A10000000000000000000045 /* PodBridgeLibraryToolsViews.swift in Sources */,
+				A10000000000000000000046 /* SettingsViews.swift in Sources */,
+				A10000000000000000000047 /* TransferProgressViews.swift in Sources */,
+				A10000000000000000000048 /* TransferCompletionViews.swift in Sources */,
 				A1000000000000000000002C /* SignatureRecovery.metal in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -405,13 +870,46 @@
 				A20000000000000000000001 /* PodBridgeApp.swift in Sources */,
 				A20000000000000000000002 /* ContentView.swift in Sources */,
 				A20000000000000000000003 /* MusicFile.swift in Sources */,
+				A20000000000000000000054 /* TransferPresentationModels.swift in Sources */,
+				A20000000000000000000055 /* IPodAlbum.swift in Sources */,
+				A20000000000000000000056 /* PodBridgeHomeView.swift in Sources */,
+				A20000000000000000000057 /* MusicTransferViewModel+DerivedState.swift in Sources */,
+				A2000000000000000000005B /* DemoArtworkSearchService.swift in Sources */,
+				A20000000000000000000058 /* DemoIPodFactory.swift in Sources */,
+				A2000000000000000000005A /* DemoLibraryEditor.swift in Sources */,
+				A20000000000000000000059 /* LocalSignatureRecoveryService.swift in Sources */,
 				A20000000000000000000004 /* MusicTransferEngine.swift in Sources */,
 				A20000000000000000000005 /* MusicTransferViewModel.swift in Sources */,
+				A20000000000000000000072 /* MusicTransferViewModel+Artwork.swift in Sources */,
+				A20000000000000000000071 /* MusicTransferViewModel+Library.swift in Sources */,
+				A20000000000000000000073 /* MusicTransferViewModel+Connection.swift in Sources */,
+				A20000000000000000000075 /* MusicTransferViewModel+Demo.swift in Sources */,
+				A20000000000000000000074 /* MusicTransferViewModel+Transfer.swift in Sources */,
+				A10000000000000000000076 /* MusicTransferViewModel+ALACarte.swift in Sources */,
+				A20000000000000000000077 /* MusicTransferViewModel+LibraryIO.swift in Sources */,
+				A20000000000000000000078 /* MusicTransferViewModel+LibraryRepair.swift in Sources */,
+				A20000000000000000000079 /* MusicTransferViewModel+DeviceRecovery.swift in Sources */,
 				A2000000000000000000000A /* BinaryData.swift in Sources */,
 				A2000000000000000000000B /* AudioMetadataReader.swift in Sources */,
 				A2000000000000000000000C /* ClassicDatabase.swift in Sources */,
+				A20000000000000000000080 /* ClassicDatabasePlayCounts.swift in Sources */,
+				A20000000000000000000081 /* ClassicDatabaseImport.swift in Sources */,
+				A20000000000000000000082 /* ClassicDatabaseRemoval.swift in Sources */,
+				A20000000000000000000083 /* ClassicDatabaseMetadataEditing.swift in Sources */,
+				A20000000000000000000089 /* ClassicDatabaseRecordEditing.swift in Sources */,
+				A20000000000000000000084 /* ClassicDatabaseAlbumNormalization.swift in Sources */,
+				A20000000000000000000085 /* ClassicDatabasePlaylists.swift in Sources */,
+				A20000000000000000000086 /* ClassicDatabaseArtworkEditing.swift in Sources */,
+				A20000000000000000000087 /* ClassicDatabaseCoreOperations.swift in Sources */,
+				A20000000000000000000088 /* ClassicDatabaseSorting.swift in Sources */,
 				A2000000000000000000000D /* IPodSyncEngine.swift in Sources */,
+				A20000000000000000000070 /* IPodDeletionBackupStore.swift in Sources */,
+				A20000000000000000000067 /* IPodDeletionOperations.swift in Sources */,
+				A20000000000000000000069 /* IPodDeletionRestoreOperations.swift in Sources */,
+				A20000000000000000000068 /* IPodPermanentDeletionOperations.swift in Sources */,
+				A20000000000000000000064 /* IPodSyncModels.swift in Sources */,
 				A20000000000000000000010 /* ArtworkDatabase.swift in Sources */,
+				A2000000000000000000005E /* ArtworkDatabaseExport.swift in Sources */,
 				A20000000000000000000017 /* ArtworkLookupService.swift in Sources */,
 				A20000000000000000000012 /* AppLogger.swift in Sources */,
 				A20000000000000000000013 /* PersistentLogStore.swift in Sources */,
@@ -419,8 +917,38 @@
 				A20000000000000000000015 /* DebugShakeDetector.swift in Sources */,
 				A20000000000000000000023 /* IPodVolumeStore.swift in Sources */,
 				A20000000000000000000024 /* Hash58.swift in Sources */,
+				A2000000000000000000002D /* RockboxTransferEngine.swift in Sources */,
+				A2000000000000000000002E /* TransferFileNaming.swift in Sources */,
+				A2000000000000000000002F /* TransferBackgroundExecution.swift in Sources */,
+				A20000000000000000000030 /* IPodLibraryViews.swift in Sources */,
+				A20000000000000000000052 /* ClassicDatabaseDeviceIdentity.swift in Sources */,
+				A20000000000000000000051 /* MusicTransferViewModel+Rockbox.swift in Sources */,
+				A20000000000000000000050 /* ClassicDatabaseParsing.swift in Sources */,
+				A2000000000000000000004F /* ClassicDatabaseSerialization.swift in Sources */,
+				A2000000000000000000004E /* IPodArtworkOperations.swift in Sources */,
+				A2000000000000000000005C /* ExportAudioMetadataWriter.swift in Sources */,
+				A2000000000000000000005F /* MP4AudioMetadataWriter.swift in Sources */,
+				A2000000000000000000004D /* IPodLibraryExport.swift in Sources */,
+				A2000000000000000000004C /* IPodImportNormalization.swift in Sources */,
+				A2000000000000000000004B /* PlaylistEditorViews.swift in Sources */,
+				A20000000000000000000049 /* IPodAlbumViews.swift in Sources */,
+				A2000000000000000000004A /* OnlineArtworkPickerView.swift in Sources */,
+				A20000000000000000000041 /* CommonViews.swift in Sources */,
+				A20000000000000000000042 /* ConnectionAndRecoveryViews.swift in Sources */,
+				A20000000000000000000043 /* TransferReviewViews.swift in Sources */,
+				A20000000000000000000044 /* PodBridgeLibraryFeatureViews.swift in Sources */,
+				A20000000000000000000045 /* PodBridgeLibraryToolsViews.swift in Sources */,
+				A20000000000000000000046 /* SettingsViews.swift in Sources */,
+				A20000000000000000000047 /* TransferProgressViews.swift in Sources */,
+				A20000000000000000000048 /* TransferCompletionViews.swift in Sources */,
 				A2000000000000000000002C /* SignatureRecovery.metal in Sources */,
 				A10000000000000000000027 /* ALACarteIntegration.swift in Sources */,
+				A10000000000000000000060 /* ALACarteTransferViews.swift in Sources */,
+				A10000000000000000000061 /* ALACarteTransferService.swift in Sources */,
+				A10000000000000000000062 /* ALACarteBrowserView.swift in Sources */,
+				A10000000000000000000063 /* ALACarteWebView.swift in Sources */,
+				A10000000000000000000065 /* ALACarteModels.swift in Sources */,
+				A10000000000000000000066 /* ALACarteLibraryRow.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -579,9 +1107,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "PodBridge/PodBridge-Info.plist";
+				INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers = "$(PRODUCT_BUNDLE_IDENTIFIER).continued-processing.*";
 				INFOPLIST_KEY_CFBundleDisplayName = PodBridge;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
-				INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers = "$(PRODUCT_BUNDLE_IDENTIFIER).continued-processing.*";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				"INFOPLIST_KEY_LSApplicationCategoryType[sdk=macosx*]" = "public.app-category.music";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
@@ -601,7 +1129,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTS_MACCATALYST = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -618,9 +1146,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "PodBridge/PodBridge-Info.plist";
+				INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers = "$(PRODUCT_BUNDLE_IDENTIFIER).continued-processing.*";
 				INFOPLIST_KEY_CFBundleDisplayName = PodBridge;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
-				INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers = "$(PRODUCT_BUNDLE_IDENTIFIER).continued-processing.*";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				"INFOPLIST_KEY_LSApplicationCategoryType[sdk=macosx*]" = "public.app-category.music";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
@@ -641,7 +1169,7 @@
 				SUPPORTS_MACCATALYST = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "PODBRIDGE_DEMO $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -662,7 +1190,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = org.podbridge.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PodBridge.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PodBridge";
 			};
@@ -684,7 +1212,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = org.podbridge.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PodBridge.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PodBridge";
 			};
@@ -711,7 +1239,7 @@
 				SUPPORTS_MACCATALYST = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "PODBRIDGE_ALACARTE $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -737,7 +1265,7 @@
 				SUPPORTS_MACCATALYST = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "PODBRIDGE_ALACARTE $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -758,7 +1286,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = org.podbridge.app.alacarte.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PodBridgeALACarte.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PodBridgeALACarte";
 			};
@@ -780,7 +1308,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = org.podbridge.app.alacarte.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PodBridgeALACarte.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PodBridgeALACarte";
 			};

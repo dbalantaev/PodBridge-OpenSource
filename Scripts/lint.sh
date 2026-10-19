@@ -9,4 +9,4 @@ if ! command -v swiftlint >/dev/null 2>&1; then
   exit 127
 fi
 
-swiftlint lint --config .swiftlint.yml
+swiftlint lint --config .swiftlint.yml --strict --baseline .swiftlint-baseline.json
